@@ -1,0 +1,73 @@
+/* 账号页与模型页。弹层在 sheets.css。只引用 tokens.css 的变量 */
+
+/* 公共：只给读屏器的文字、可横向滚动的表格容器 */
+.pg-scroll { overflow-x: auto; }
+
+/* 账号页 */
+table.pg-acct th, table.pg-acct td { padding-inline: var(--space-2); white-space: nowrap; }
+.pg-acct td:first-child { white-space: normal; }
+.pg-acct th:first-child, .pg-acct td:first-child { padding-left: var(--space-4); max-width: var(--space-64); }
+.pg-acct th:last-child, .pg-acct td:last-child { padding-right: var(--space-4); }
+.pg-acct tbody td { transition: background-color var(--duration-fast) var(--ease-out); }
+.pg-acct tbody tr:hover td { background: var(--accent); }
+.pg-who { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+.pg-who b { font-weight: var(--font-weight-semibold); }
+.pg-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: var(--space-32); }
+.pg-act { width: 1%; white-space: nowrap; text-align: right; }
+.pg-empty { padding-block: var(--space-10); text-align: center; }
+
+/* 模型页：列表行 */
+.row.m { grid-template-columns: minmax(0, 1fr); }
+.row.m .s { grid-column: 1; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+
+/* 模型页：详情 */
+.pg-lead { max-width: 68ch; font-size: var(--text-body-lg); line-height: var(--text-body-lg--line-height); color: var(--muted-foreground); }
+.panel-h.pg-pro svg { color: var(--success); }
+.panel-h.pg-con svg { color: var(--warning); }
+
+/* 各卡适配 */
+table.pg-fit th, table.pg-fit td { padding: var(--space-2) var(--space-4); }
+.pg-fit tbody th {
+  text-align: left; white-space: nowrap; font-weight: var(--font-weight-regular); font-size: var(--text-body); color: var(--foreground);
+  background: none; border-bottom: 1px solid var(--border);
+}
+.pg-fit tbody th:first-child { border-radius: 0; }
+.pg-fit tbody tr:last-child th { border-bottom: 0; }
+.pg-fit tbody tr:hover td, .pg-fit tbody tr:hover th { background: var(--accent); }
+.pg-fit tr.is-off th, .pg-fit tr.is-off th .muted { color: var(--subtle-foreground); }
+.pg-tps { font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums; }
+.pg-tps small { font-weight: var(--font-weight-regular); color: var(--muted-foreground); }
+.pg-tps.good { color: var(--success-soft-foreground); }
+.pg-tps.low { color: var(--warning-soft-foreground); }
+.pg-note { display: block; font-size: var(--text-caption); }
+.pg-fill { display: flex; align-items: center; gap: var(--space-2); min-width: var(--space-32); }
+.pg-fill .num { min-width: var(--space-8); text-align: right; font-size: var(--text-caption); color: var(--muted-foreground); }
+
+/* 事实、优缺点、用法的条目列表 */
+.pg-rows { list-style: none; margin: 0; padding: 0; counter-reset: n; }
+.pg-rows li { display: flex; gap: var(--space-3); align-items: baseline; padding: var(--space-2-5) var(--space-4); border-bottom: 1px solid var(--border); }
+.pg-rows li:last-child { border-bottom: 0; }
+ol.pg-rows li::before {
+  counter-increment: n; content: counter(n); flex: none; align-self: flex-start; margin-top: var(--space-0-5); min-width: var(--space-5); height: var(--space-5);
+  display: inline-grid; place-items: center; border-radius: var(--radius-full); background: var(--muted); color: var(--muted-foreground);
+  font-size: var(--text-caption); font-variant-numeric: tabular-nums;
+}
+.pg-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--space-80)), 1fr)); gap: var(--space-5); align-items: start; }
+a.pg-src { display: inline-flex; flex: none; align-self: flex-start; margin-top: var(--space-0-5); color: var(--subtle-foreground); border-radius: var(--radius-sm); transition: color var(--duration-fast) var(--ease-out); }
+a.pg-src:hover { color: var(--brand-text); }
+.pg-src-text { color: var(--subtle-foreground); font-size: var(--text-caption); }
+
+/* 模板卡 */
+.pg-tpls { display: flex; flex-direction: column; gap: var(--space-3); }
+.pg-tpl { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.pg-tpl-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
+.pg-tpl-h b { font-weight: var(--font-weight-semibold); }
+.pg-prompt {
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--muted); color: var(--foreground);
+  font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.pg-prompt.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+.pg-tpl-extra { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-3); align-items: baseline; font-size: var(--text-body-sm); }
+.pg-tpl-f { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.pg-tpl-meta { flex: 1 1 var(--space-80); min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.pg-tpl-act { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-left: auto; }

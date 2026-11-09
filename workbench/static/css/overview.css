@@ -1,0 +1,118 @@
+/* 概览与实例列表。颜色、尺寸、阴影、时长只用 tokens.css 变量；类名一律 ov- 前缀 */
+
+.ov-ok { color: var(--success-soft-foreground); }
+.ov-low { color: var(--warning-soft-foreground); }
+.ov-cap { font-size: var(--text-caption); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.ov-sec { display: flex; flex-direction: column; gap: var(--space-3); }
+.ov-h { font-size: var(--text-label); line-height: var(--text-label--line-height); font-weight: var(--font-weight-medium); color: var(--muted-foreground); }
+
+/* 需要你处理：最醒目 */
+.ov-att { overflow: hidden; border-color: var(--warning); }
+.ov-att.err { border-color: var(--danger); }
+.ov-att .panel-h { border-bottom-color: inherit; }
+.ov-att.err .panel-h { background: var(--danger-soft); color: var(--danger-soft-foreground); }
+.ov-att.warn .panel-h { background: var(--warning-soft); color: var(--warning-soft-foreground); }
+.ov-att-row {
+  --ov-sev: var(--warning);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4); box-shadow: inset 3px 0 0 var(--ov-sev);
+}
+.ov-att-row.err { --ov-sev: var(--danger); }
+.ov-att-row + .ov-att-row { border-top: 1px solid var(--border); }
+.ov-ic { display: inline-flex; color: var(--ov-sev); }
+.ov-ic svg.lucide { width: var(--icon-lg); height: var(--icon-lg); }
+.ov-att-row .grow { min-width: var(--space-56); }
+.ov-att-t { font-weight: var(--font-weight-semibold); }
+.ov-att-s { font-size: var(--text-caption); line-height: var(--text-caption--line-height); color: var(--muted-foreground); }
+.ov-acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* 指标 */
+.ov-sub { font-size: var(--text-caption); line-height: var(--text-caption--line-height); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+/* 实例卡片 */
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--space-80), 1fr)); gap: var(--space-4); }
+.ov-card {
+  position: relative; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); cursor: pointer; min-width: 0;
+}
+.ov-card:hover { border-color: var(--border-strong); }
+.ov-card-h { display: flex; align-items: flex-start; gap: var(--space-2-5); }
+.ov-card-h .dot { margin-top: var(--space-1-5); }
+.ov-card-h .chip { flex: none; }
+.ov-card-t { font-weight: var(--font-weight-semibold); }
+.ov-card-s { font-size: var(--text-caption); line-height: var(--text-caption--line-height); color: var(--muted-foreground); }
+.ov-main { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); min-height: var(--space-10); }
+.ov-big { font-size: var(--text-display); line-height: var(--text-display--line-height); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ov-big small { font-size: var(--text-caption); font-weight: var(--font-weight-regular); color: var(--muted-foreground); margin-left: var(--space-1); }
+.ov-util { width: var(--space-32); display: flex; flex-direction: column; gap: var(--space-0-5); flex: none; }
+.ov-util .spark { height: var(--space-6); }
+.ov-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); font-size: var(--text-caption); color: var(--muted-foreground); }
+.ov-meta b { color: var(--foreground); font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums; }
+.ov-meta b.ov-low { color: var(--warning-soft-foreground); }
+.ov-vram { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; justify-content: flex-end; }
+.ov-vram .meter { max-width: var(--space-24); }
+.ov-card > .meter { flex: none; }
+
+/* 达标轨：填充走 --p，刻度走 --at */
+.ov-rail { position: relative; padding-bottom: var(--space-4); }
+.ov-rail-t { height: var(--space-1-5); border-radius: var(--radius-full); background: var(--muted); overflow: hidden; }
+.ov-rail-t > i { display: block; height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--success); transition: width var(--duration-slow) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
+.ov-rail.warn .ov-rail-t > i { background: var(--warning); }
+.ov-tick { position: absolute; left: var(--at); top: calc(var(--space-1) * -1); width: 2px; height: calc(var(--space-1-5) + var(--space-2)); margin-left: -1px; background: var(--foreground); opacity: 0.55; }
+.ov-tick b { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: var(--space-0-5); font-size: var(--text-caption); line-height: var(--text-caption--line-height); font-weight: var(--font-weight-regular); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+.ov-card-f { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-1); }
+
+/* 部署中：五段进度 */
+.ov-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
+.ov-steps i { position: relative; overflow: hidden; height: var(--space-1-5); border-radius: var(--radius-full); background: var(--muted); transition: background-color var(--duration-slow) var(--ease-out); }
+.ov-steps i.done { background: var(--brand); }
+.ov-steps i.cur { background: var(--brand-soft); }
+.ov-steps i.cur::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--brand), transparent); animation: ov-flow var(--duration-pulse) var(--ease-in-out) infinite; }
+@keyframes ov-flow { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.ov-boot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font-size: var(--text-body-sm); }
+.ov-wait { display: inline-flex; align-items: center; gap: var(--space-1-5); color: var(--muted-foreground); }
+.ov-wait .spin { display: inline-flex; }
+
+/* 空状态 */
+.ov-empty { flex: none; min-height: var(--space-64); border: 1px dashed var(--border-strong); border-radius: var(--radius-xl); }
+.ov-empty-act { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.ov-empty-act { align-items: stretch; }
+.ov-empty-act > .btn { height: auto; min-height: var(--control-h-lg); }
+.ov-quick { padding: var(--space-1-5) var(--space-3); text-align: left; }
+.ov-quick span { display: flex; flex-direction: column; }
+.ov-quick small { font-size: var(--text-caption); line-height: var(--text-caption--line-height); color: var(--muted-foreground); }
+
+/* 账号条：最轻 */
+.ov-accts { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--space-48), 1fr)); gap: var(--space-2); }
+.ov-acct {
+  display: flex; flex-direction: column; gap: var(--space-1-5); text-align: left; min-width: 0; cursor: pointer;
+  padding: var(--space-2-5) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-lg); background: none;
+}
+.ov-acct:hover { background: var(--accent); }
+.ov-acct-1 { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-body-sm); }
+.ov-acct-1 .ov-cap { margin-left: auto; }
+.ov-acct-cu { font-size: var(--text-body); font-weight: var(--font-weight-medium); font-variant-numeric: tabular-nums; }
+.ov-gpus { display: flex; flex-wrap: wrap; gap: var(--space-1); min-height: var(--space-5); align-items: center; }
+
+/* 实例页左栏 */
+[data-page="instances"] .list { gap: var(--space-3); }
+.ov-group { display: flex; flex-direction: column; }
+.ov-gh { width: 100%; border: 0; background: none; cursor: pointer; text-align: left; border-radius: var(--radius-md); }
+.ov-gh:hover { color: var(--foreground); }
+.ov-gh svg.lucide { transition: transform var(--duration-base) var(--ease-out); }
+.ov-gh[aria-expanded="true"] svg.lucide { transform: rotate(90deg); }
+.ov-gh .n { font-variant-numeric: tabular-nums; }
+.ov-gh.attn .n { color: var(--danger-soft-foreground); }
+.ov-rows { display: flex; flex-direction: column; gap: var(--space-1); }
+.ov-rows:not(:empty) { margin-top: var(--space-1); }
+.row .r.err { color: var(--danger-soft-foreground); }
+.row .r.warn { color: var(--warning-soft-foreground); }
+
+/* 换选中实例时右栏是新节点：淡入并轻微上移 */
+@keyframes ov-detail-in { from { opacity: 0; transform: translateY(var(--shift-page)); } to { opacity: 1; transform: none; } }
+[data-page="instances"] .detail { animation: ov-detail-in var(--duration-base) var(--ease-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-page="instances"] .detail { animation: none; }
+  .ov-steps i.cur::after { animation: none; transform: none; background: var(--brand); opacity: 0.5; }
+}

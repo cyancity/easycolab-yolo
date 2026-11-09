@@ -39,3 +39,4 @@
 ## 设计
 本机网页，Chrome 安装为 PWA。B 端工作台预设（`workbench/static/tokens.css`），深色默认，支持浅色，视口 1440×900。
 组件不用 shadcn/Tailwind：单用户本地工具，由 Python 服务直接提供静态文件，免去 Node 构建链；原型代码直接沿用。
+视觉、交互和动效规则见 `DESIGN.md`。

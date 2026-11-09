@@ -1,0 +1,59 @@
+/* 动效：只说明变化。时长和曲线只用 tokens.css 的变量；减弱动效时 token 已归零，循环动画在末尾关闭 */
+
+/* 切页 */
+@keyframes page-enter { from { opacity: 0; transform: translateY(var(--shift-page)); } to { opacity: 1; transform: none; } }
+.page-enter { animation: page-enter var(--duration-base) var(--ease-out) both; }
+
+/* 列表增删：morph 给新项加 is-entering（下一帧移除），给删除项加 is-leaving（播完移除） */
+[data-list] > [data-key] {
+  transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out),
+    height var(--duration-slow) var(--ease-out), padding var(--duration-slow) var(--ease-out), margin var(--duration-slow) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+[data-list] > [data-key].is-entering { opacity: 0; transform: translateY(var(--shift-page)); padding-block: 0; margin-block: 0; }
+[data-list] > [data-key].is-leaving {
+  opacity: 0; height: 0 !important; padding-block: 0 !important; margin-block: 0 !important; border-width: 0 !important; pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-in), height var(--duration-slow) var(--ease-in),
+    padding var(--duration-slow) var(--ease-in), margin var(--duration-slow) var(--ease-in);
+}
+
+/* 状态点：部署中呼吸，变绿时外扩一次光圈（.is-ping 由 JS 加上并在结束后移除） */
+@keyframes pulse { 50% { opacity: 0.35; } }
+@keyframes ping { from { opacity: 0.6; transform: scale(1); } to { opacity: 0; transform: scale(var(--ping-scale)); } }
+.dot { position: relative; }
+.dot.busy { animation: pulse var(--duration-pulse) var(--ease-in-out) infinite; }
+.dot.is-ping::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--success); pointer-events: none;
+  animation: ping var(--duration-slow) var(--ease-out) forwards;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin var(--duration-spin) linear infinite; }
+.skeleton { animation: pulse var(--duration-pulse) var(--ease-in-out) infinite; }
+
+/* 弹层：遮罩淡入，面板 0.98 到 1 并上移；关闭反向且更快 */
+#sheet > [data-key] { transition: opacity var(--duration-slow) var(--ease-out); }
+#sheet > [data-key].is-entering, #sheet > [data-key].is-leaving { opacity: 0; transform: none; height: auto !important; padding: 0 !important; margin: 0 !important; border-width: 0 !important; }
+#sheet > [data-key].is-leaving { transition: opacity var(--duration-fast) var(--ease-in); }
+#sheet .sheet { transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out); }
+#sheet > .is-entering .sheet, #sheet > .is-leaving .sheet { opacity: 0; transform: translateY(var(--shift-sheet)) scale(var(--press-scale)); }
+#sheet > .is-leaving .sheet { transition: opacity var(--duration-fast) var(--ease-in), transform var(--duration-fast) var(--ease-in); }
+
+/* 部署步骤：内容沿前进方向滑入，--dir 为 1 或 -1 */
+@keyframes step-in { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * var(--shift-step))); } to { opacity: 1; transform: none; } }
+[data-step] { animation: step-in var(--duration-base) var(--ease-out) both; }
+
+/* 选中：边框和底色过渡，勾选图标缩放进入（图标加 .check-in） */
+[role="radio"], [role="option"] { transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out); }
+.check-in { transform: scale(0); transition: transform var(--duration-fast) var(--ease-out); }
+[aria-checked="true"] .check-in, [aria-selected="true"] .check-in, .is-checked .check-in { transform: scale(1); }
+
+/* toast：从底部升起，时间线收缩 */
+@keyframes toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+#toast > [data-key].is-entering, #toast > [data-key].is-leaving { transform: translateY(var(--shift-sheet)); height: auto !important; padding-block: var(--space-2-5) !important; border-width: 1px !important; }
+#toast > [data-key] { transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out); }
+#toast > [data-key].is-leaving { transition: opacity var(--duration-fast) var(--ease-in), transform var(--duration-fast) var(--ease-in); }
+.toast-timer { animation: toast-timer var(--duration-toast) linear forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter, [data-step], .dot.busy, .dot.is-ping::after, .spin, .skeleton, .toast-timer { animation: none; }
+}
