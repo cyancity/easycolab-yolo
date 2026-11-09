@@ -157,6 +157,32 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --duration-number: 600ms;      /* 数字补间 */
+  --duration-toast: 4000ms;      /* toast 停留，时间线收缩用 */
+  --duration-pulse: 1400ms;      /* 部署中状态点的呼吸、骨架屏 */
+  --duration-spin: 900ms;        /* 转圈图标 */
+  --shift-page: 4px;             /* 切页、列表项进场的位移 */
+  --shift-sheet: 8px;            /* 弹层面板的位移 */
+  --shift-step: 12px;            /* 部署步骤滑入的位移 */
+  --press-scale: 0.98;           /* 按下、弹层起始缩放 */
+  --ping-scale: 3;               /* 状态点光圈外扩倍数 */
+
+  /* 补充间距与布局尺寸（视图写手需要新尺寸时在这里取，不写字面量） */
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+  --space-40: 10rem;
+  --space-48: 12rem;
+  --space-56: 14rem;
+  --space-64: 16rem;
+  --space-72: 18rem;
+  --space-80: 20rem;
+  --space-96: 24rem;
+  --list-w: 22rem;
+  --sheet-w: 64rem;
+  --sheet-w-narrow: 32rem;
+  --toast-w: 22rem;
 }
 
 .dark,
@@ -226,6 +252,7 @@
     --duration-fast: 0ms;
     --duration-base: 0ms;
     --duration-slow: 0ms;
+    --duration-number: 0ms;
   }
 }
 

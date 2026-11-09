@@ -1,7 +1,6 @@
 // 模型页：左侧模型列表，右侧说明、优缺点、用法和模板
-import { esc, icon, ui } from "./util.js";
-import { modelChip } from "./views.js";
-import { hasCode } from "./callcode.js";
+import { esc, icon, modelChip, ui } from "../util.js";
+import { hasCode } from "../callcode.js";
 
 // 来源和外链只放行 https，其余按纯文字显示
 function safeUrl(u) {
@@ -74,7 +73,7 @@ export function tplRef(key) {
   return model && tpl ? { model, tpl } : null;
 }
 
-const row = (m) => `<div class="row m" role="option" tabindex="0" data-model="${esc(m.id)}" aria-selected="${ui.msel === m.id}">
+const row = (m) => `<div class="row m" role="option" tabindex="0" data-key="m-${esc(m.id)}" data-model="${esc(m.id)}" aria-selected="${ui.msel === m.id}">
   <span class="t">${esc(m.name)}</span>${modelChip(m)}
   <div class="s subtle">${esc(m.size)}</div></div>`;
 
@@ -82,6 +81,6 @@ export function viewModels() {
   const list = ui.data.models;
   if (!list.some((m) => m.id === ui.msel)) ui.msel = list[0]?.id;
   const m = list.find((x) => x.id === ui.msel);
-  return `<div class="split"><div class="list" role="listbox" aria-label="模型">${list.map(row).join("")}</div>
-    <div class="detail">${m ? detail(m, ui.docs?.[m.id]) : ""}</div></div>`;
+  return `<div class="page split" data-page="models"><div class="list" role="listbox" aria-label="模型">${list.map(row).join("")}</div>
+    <div class="detail" data-key="detail-${esc(m?.id)}">${m ? detail(m, ui.docs?.[m.id]) : ""}</div></div>`;
 }
