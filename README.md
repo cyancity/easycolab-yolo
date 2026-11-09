@@ -77,46 +77,6 @@ xattr -cr /Applications/EasyColab.app
 
 ---
 
-### Windows 客户端
-
-#### 方式一：下载免安装绿色版 `.zip`（零 Python 依赖，推荐）
-1. 从 GitHub Releases（或仓库 **Actions -> Build EasyColab Windows App** 构建产物）下载 `EasyColab-Windows-x64.zip`。
-2. 解压到任意目录后，直接双击运行 `EasyColab\EasyColab.exe` 即可使用（已内置 Python 运行时、Qt6 界面库、FFmpeg 音视频解码器与 `colab_bridge` 云端唤醒组件，无需在电脑上安装 Python）。
-3. 如遇 Windows SmartScreen 提示 *“Windows 已保护你的电脑”*，点击 **「更多信息」 -> 「仍要运行」** 即可。
-
-#### 方式二：Windows 本地一键打包独立 `.exe`
-若本机已安装 Python 3.10～3.13（64 位），在仓库根目录可直接一键创建隔离虚拟环境并编译生成 `dist\EasyColab\EasyColab.exe` 与 `EasyColab-Windows-x64.zip`：
-
-```bat
-REM 双击或在 CMD 中运行：
-windows_app\build_windows_app.bat
-```
-
-或使用 PowerShell：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\windows_app\build_windows_app.ps1
-```
-
-#### 方式三：在 macOS 上直接交叉打包 Windows 独立 `.exe`
-若当前在 macOS 开发机上（已安装 `brew install mingw-w64`），无需 Windows 虚拟机即可直接交叉编译原生 Win32 GUI 启动器并组装完整的 `EasyColab-Windows-x64.zip`：
-
-```bash
-python3 windows_app/build_windows_from_mac.py
-```
-
-#### 方式四：源码开发模式直接运行（Windows / macOS 通用预览）
-
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS:   source .venv/bin/activate
-pip install -r windows_app/requirements-windows.txt
-python windows_app/easycolab_win.py
-```
-
----
-
 ### Google Colab 官方网页端运行（适合 Colab 免费版 / 浏览器用户）
 1. 打开 [Google Colab](https://colab.research.google.com/)，上传本仓库根目录下的 `EasyColab_Server.ipynb`（或在客户端引导页点击「导出 / 定位 `.ipynb` 笔记本」）。
 2. 在 Colab 菜单栏选择 `代码执行程序 -> 更改运行时类型`，选择 `G4` / `A100` / `L4` GPU 并按顺序运行单元格。
