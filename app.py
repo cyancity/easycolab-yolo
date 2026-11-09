@@ -10,11 +10,15 @@ import queue
 import atexit
 import socket
 import base64
+import hmac
+import secrets
 import subprocess
 import threading
 from collections import deque
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any
+
+from starlette.concurrency import run_in_threadpool
 
 # ==============================================================================
 # 实时终端进度与 tqdm 捕获器 (将 Colab 网页端的实时下载进度同步给 macOS App)
@@ -1078,6 +1082,9 @@ LOADED_MODEL_ID = None
 CURRENT_MODEL_MODE = None
 QWEN_CONTEXT_LENGTH = 32768  # 用户可自定义上下文长度 (4K ~ 256K = 262144 tokens)
 API_AUTH_KEY = ""
+# 每次启动随机生成的路径密钥：全部 /minimax_api 与 /v1 路由挂载在 /k/<RUNTIME_SECRET>/ 之下，
+# 仅启动日志输出的完整地址可访问；裸路径只返回 403，防止 gradio.live URL 泄露后 API 被直接调用
+RUNTIME_SECRET = secrets.token_urlsafe(16)
 API_REQUEST_COUNT = 0
 GPU_LOCK = threading.Lock()
 ABORT_GENERATION_EVENT = threading.Event()
@@ -4820,13 +4827,15 @@ def _ensure_comfyui_manager_tunnel_config(comfy_root: str, persist_root: str):
             if os.path.exists(cfg_p):
                 txt = open(cfg_p, "r", encoding="utf-8", errors="ignore").read()
                 if "security_level" in txt:
-                    new_txt = re.sub(r"security_level\s*=\s*\S+", "security_level = weak", txt)
+                    # 归位到 Manager 默认的 normal 档：weak 档允许经 Web 界面直接安装任意 Git
+                    # 自定义节点并执行其代码，等于把隧道 URL 变成未认证 RCE 入口
+                    new_txt = re.sub(r"security_level\s*=\s*\S+", "security_level = normal", txt)
                     if new_txt != txt:
                         with open(cfg_p, "w", encoding="utf-8") as wf:
                             wf.write(new_txt)
                     continue
             with open(cfg_p, "w", encoding="utf-8") as wf:
-                wf.write("[default]\nsecurity_level = weak\npreview_method = auto\n")
+                wf.write("[default]\nsecurity_level = normal\npreview_method = auto\n")
         except Exception:
             pass
 
@@ -6220,15 +6229,15 @@ class UnloadModelRequest(BaseModel):
 #            与 Anthropic (/v1/messages, /v1/messages/count_tokens) 双协议兼容引擎
 # ==============================================================================
 def _verify_external_api_auth(request: Request, protocol: str = "openai") -> Optional[JSONResponse]:
-    """同时支持 Authorization: Bearer <key> 与 x-api-key: <key> 鉴权"""
+    """同时支持 Authorization: Bearer <key> 与 x-api-key: <key> 鉴权。
+
+    密钥为空时一律拒绝（__main__ 启动时已自动生成随机密钥，这里兜底防御）。"""
     expected = (API_AUTH_KEY or "").strip()
-    if not expected:
-        return None
     auth_hdr = (request.headers.get("authorization") or "").strip()
     bearer_tok = auth_hdr[7:].strip() if auth_hdr.lower().startswith("bearer ") else ""
     x_api_tok = (request.headers.get("x-api-key") or "").strip()
     provided = bearer_tok or x_api_tok
-    if provided == expected:
+    if expected and hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8")):
         return None
     if protocol == "anthropic":
         return JSONResponse(
@@ -6990,6 +6999,7 @@ def _prepare_qwen_streamer_generation(
 def attach_macos_api_routes(app: FastAPI):
     """在 Gradio 底层的 FastAPI 实例上挂载原生 macOS 客户端接口 + OpenAI / Anthropic 双协议 API 网关"""
     global API_AUTH_KEY, API_REQUEST_COUNT
+    API_BASE = "/k/" + RUNTIME_SECRET  # 启动日志输出的完整地址包含本段
 
     try:
         app.add_middleware(
@@ -7003,23 +7013,23 @@ def attach_macos_api_routes(app: FastAPI):
         # Gradio 启动后的 FastAPI 实例默认已内置全局 CORS 中间件
         pass
 
-    @app.get("/minimax_api/status")
+    @app.get(API_BASE + "/minimax_api/status")
     def api_status(model_id: Optional[str] = None):
         return get_gpu_status_dict(model_id=model_id)
 
-    @app.post("/minimax_api/select_model")
+    @app.post(API_BASE + "/minimax_api/select_model")
     def api_select_model(req: SelectModelRequest):
         touch_activity()
         return get_gpu_status_dict(model_id=req.model_id)
 
-    @app.post("/minimax_api/config_idle")
+    @app.post(API_BASE + "/minimax_api/config_idle")
     def api_config_idle(req: IdleConfigRequest):
         global IDLE_TIMEOUT_MINUTES
         IDLE_TIMEOUT_MINUTES = req.idle_timeout_minutes
         touch_activity()
         return get_gpu_status_dict()
 
-    @app.post("/minimax_api/config_context")
+    @app.post(API_BASE + "/minimax_api/config_context")
     def api_config_context(req: ContextConfigRequest):
         global QWEN_CONTEXT_LENGTH
         QWEN_CONTEXT_LENGTH = _clamp_context_length(req.context_length)
@@ -7033,20 +7043,26 @@ def attach_macos_api_routes(app: FastAPI):
         print(f"[上下文配置] 目标最大上下文长度已设为 {QWEN_CONTEXT_LENGTH // 1024}K ({QWEN_CONTEXT_LENGTH} tokens)")
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.post("/minimax_api/config_api_key")
+    @app.post(API_BASE + "/minimax_api/config_api_key")
     def api_config_api_key(req: ApiKeyConfigRequest):
         global API_AUTH_KEY
-        API_AUTH_KEY = (req.api_key or "").strip()
+        new_key = (req.api_key or "").strip()
+        if not new_key:
+            # 免密开放模式已移除：空密钥一律拒绝（见 _verify_external_api_auth），只允许换新值
+            return JSONResponse(
+                status_code=400,
+                content={"error": "鉴权已强制开启，不允许清空 API Key（免密开放模式已移除）。如需更换密钥请传入新值。"},
+            )
+        API_AUTH_KEY = new_key
         touch_activity()
-        state_str = "已开启密钥鉴权" if API_AUTH_KEY else "已设为免密开放模式"
-        print(f"[API 网关] 对外协议网关 ({state_str})")
+        print("[API 网关] 对外协议网关 (已开启密钥鉴权)")
         return get_gpu_status_dict()
 
     # --------------------------------------------------------------------------
     # 1. OpenAI 兼容协议: GET /v1/models, POST /v1/chat/completions, POST /v1/images/generations
     # --------------------------------------------------------------------------
-    @app.get("/v1/models")
-    @app.get("/models")
+    @app.get(API_BASE + "/v1/models")
+    @app.get(API_BASE + "/models")
     def openai_list_models(request: Request):
         auth_err = _verify_external_api_auth(request, protocol="openai")
         if auth_err:
@@ -7064,8 +7080,8 @@ def attach_macos_api_routes(app: FastAPI):
         ]
         return {"object": "list", "data": models_data}
 
-    @app.post("/v1/chat/completions")
-    @app.post("/chat/completions")
+    @app.post(API_BASE + "/v1/chat/completions")
+    @app.post(API_BASE + "/chat/completions")
     async def openai_chat_completions(request: Request):
         global API_REQUEST_COUNT
         auth_err = _verify_external_api_auth(request, protocol="openai")
@@ -7138,65 +7154,69 @@ def attach_macos_api_routes(app: FastAPI):
         created_ts = int(time.time())
 
         if not stream:
-            parser = _IncrementalQwenStreamParser(start_in_thinking=start_in_thinking)
-            think_parts: List[str] = []
-            text_parts: List[str] = []
-            out_chunks = 0
-            try:
-                for piece in streamer:
-                    out_chunks += 1
-                    for kind, val in parser.feed(piece):
-                        if kind == "thinking":
-                            think_parts.append(val)
-                        elif kind == "text":
-                            text_parts.append(val)
-            finally:
-                cancel_event.set()
-            tail_events, tool_calls = parser.finish()
-            for kind, val in tail_events:
-                if kind == "thinking":
-                    think_parts.append(val)
-                elif kind == "text":
-                    text_parts.append(val)
-            gen_thread.join(timeout=5.0)
-            if err_box[0] is not None:
-                return JSONResponse(status_code=500, content={"error": {"message": str(err_box[0]), "type": "server_error"}})
+            # 非流式生成可能持续数分钟，同步 drain 必须放入线程池，避免阻塞事件循环
+            def _drain_nonstream():
+                parser = _IncrementalQwenStreamParser(start_in_thinking=start_in_thinking)
+                think_parts: List[str] = []
+                text_parts: List[str] = []
+                out_chunks = 0
+                try:
+                    for piece in streamer:
+                        out_chunks += 1
+                        for kind, val in parser.feed(piece):
+                            if kind == "thinking":
+                                think_parts.append(val)
+                            elif kind == "text":
+                                text_parts.append(val)
+                finally:
+                    cancel_event.set()
+                tail_events, tool_calls = parser.finish()
+                for kind, val in tail_events:
+                    if kind == "thinking":
+                        think_parts.append(val)
+                    elif kind == "text":
+                        text_parts.append(val)
+                gen_thread.join(timeout=5.0)
+                if err_box[0] is not None:
+                    return JSONResponse(status_code=500, content={"error": {"message": str(err_box[0]), "type": "server_error"}})
 
-            full_thinking = "".join(think_parts).strip()
-            full_text, extra_tools = _extract_qwen_tool_calls("".join(text_parts).strip())
-            all_tools = tool_calls + extra_tools
+                full_thinking = "".join(think_parts).strip()
+                full_text, extra_tools = _extract_qwen_tool_calls("".join(text_parts).strip())
+                all_tools = tool_calls + extra_tools
 
-            msg_obj: Dict[str, Any] = {"role": "assistant", "content": full_text if (full_text or not all_tools) else None}
-            if full_thinking:
-                msg_obj["reasoning_content"] = full_thinking
-            if all_tools:
-                msg_obj["tool_calls"] = [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"], ensure_ascii=False)},
-                    }
-                    for tc in all_tools
-                ]
+                msg_obj: Dict[str, Any] = {"role": "assistant", "content": full_text if (full_text or not all_tools) else None}
+                if full_thinking:
+                    msg_obj["reasoning_content"] = full_thinking
+                if all_tools:
+                    msg_obj["tool_calls"] = [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"], ensure_ascii=False)},
+                        }
+                        for tc in all_tools
+                    ]
 
-            final_prompt_tokens = int(getattr(streamer, "prompt_tokens", prompt_tokens) or prompt_tokens)
-            comp_tokens = int(getattr(streamer, "generated_tokens", 0)) or (
-                _count_bundle_tokens(bundle, full_thinking + full_text) if (full_thinking or full_text) else max(1, out_chunks)
-            )
-            finish_reason = "tool_calls" if all_tools else "stop"
+                final_prompt_tokens = int(getattr(streamer, "prompt_tokens", prompt_tokens) or prompt_tokens)
+                comp_tokens = int(getattr(streamer, "generated_tokens", 0)) or (
+                    _count_bundle_tokens(bundle, full_thinking + full_text) if (full_thinking or full_text) else max(1, out_chunks)
+                )
+                finish_reason = "tool_calls" if all_tools else "stop"
 
-            return {
-                "id": cmpl_id,
-                "object": "chat.completion",
-                "created": created_ts,
-                "model": req_model,
-                "choices": [{"index": 0, "message": msg_obj, "finish_reason": finish_reason}],
-                "usage": {
-                    "prompt_tokens": final_prompt_tokens,
-                    "completion_tokens": comp_tokens,
-                    "total_tokens": final_prompt_tokens + comp_tokens,
-                },
-            }
+                return {
+                    "id": cmpl_id,
+                    "object": "chat.completion",
+                    "created": created_ts,
+                    "model": req_model,
+                    "choices": [{"index": 0, "message": msg_obj, "finish_reason": finish_reason}],
+                    "usage": {
+                        "prompt_tokens": final_prompt_tokens,
+                        "completion_tokens": comp_tokens,
+                        "total_tokens": final_prompt_tokens + comp_tokens,
+                    },
+                }
+
+            return await run_in_threadpool(_drain_nonstream)
 
         def _openai_sse_stream():
             parser = _IncrementalQwenStreamParser(start_in_thinking=start_in_thinking)
@@ -7288,8 +7308,8 @@ def attach_macos_api_routes(app: FastAPI):
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
         )
 
-    @app.post("/v1/images/generations")
-    @app.post("/images/generations")
+    @app.post(API_BASE + "/v1/images/generations")
+    @app.post(API_BASE + "/images/generations")
     async def openai_images_generations(request: Request):
         """当显存中驻留了 Qwen-Image-2.1 或 Z-Image-Turbo（可与 Qwen3.8-27B 同时共驻）时，提供标准 OpenAI 生图接口"""
         global API_REQUEST_COUNT
@@ -7328,26 +7348,31 @@ def attach_macos_api_routes(app: FastAPI):
         n = max(1, min(4, int(body.get("n", 1))))
         steps = int(body.get("steps") or (8 if img_target_id == "z_image_turbo" else 40))
 
-        results = []
-        with GPU_LOCK:
-            for _ in range(n):
-                cur_seed = int(torch.randint(0, 2**31 - 1, (1,)).item())
-                if img_target_id == "z_image_turbo":
-                    img = img_pipe(prompt=prompt, width=w, height=h, num_inference_steps=steps, seed=cur_seed, rand_device="cuda")
-                else:
-                    img = img_pipe(prompt=prompt, negative_prompt=" ", width=w, height=h, num_inference_steps=steps, seed=cur_seed)
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                results.append({"b64_json": base64.b64encode(buf.getvalue()).decode("ascii")})
+        # 生图全程持有 GPU_LOCK 且逐张推理耗时较长，放入线程池避免阻塞事件循环
+        def _gen_images():
+            results = []
+            with GPU_LOCK:
+                for _ in range(n):
+                    cur_seed = int(torch.randint(0, 2**31 - 1, (1,)).item())
+                    if img_target_id == "z_image_turbo":
+                        img = img_pipe(prompt=prompt, width=w, height=h, num_inference_steps=steps, seed=cur_seed, rand_device="cuda")
+                    else:
+                        img = img_pipe(prompt=prompt, negative_prompt=" ", width=w, height=h, num_inference_steps=steps, seed=cur_seed)
+                    buf = io.BytesIO()
+                    img.save(buf, format="PNG")
+                    results.append({"b64_json": base64.b64encode(buf.getvalue()).decode("ascii")})
+            return results
+
+        results = await run_in_threadpool(_gen_images)
         return {"created": int(time.time()), "data": results}
 
     # --------------------------------------------------------------------------
     # 2. Anthropic Messages 协议: POST /v1/messages & POST /v1/messages/count_tokens
     #    完美兼容 Anthropic Python/TS SDK、Claude Code (ANTHROPIC_BASE_URL) 等工具
     # --------------------------------------------------------------------------
-    @app.post("/v1/messages/count_tokens")
-    @app.post("/messages/count_tokens")
-    @app.post("/v1/v1/messages/count_tokens")
+    @app.post(API_BASE + "/v1/messages/count_tokens")
+    @app.post(API_BASE + "/messages/count_tokens")
+    @app.post(API_BASE + "/v1/v1/messages/count_tokens")
     async def anthropic_count_tokens(request: Request):
         auth_err = _verify_external_api_auth(request, protocol="anthropic")
         if auth_err:
@@ -7358,9 +7383,9 @@ def attach_macos_api_routes(app: FastAPI):
         toks = _count_bundle_tokens(bundle, raw_txt)
         return {"input_tokens": toks}
 
-    @app.post("/v1/messages")
-    @app.post("/messages")
-    @app.post("/v1/v1/messages")
+    @app.post(API_BASE + "/v1/messages")
+    @app.post(API_BASE + "/messages")
+    @app.post(API_BASE + "/v1/v1/messages")
     async def anthropic_messages(request: Request):
         global API_REQUEST_COUNT
         auth_err = _verify_external_api_auth(request, protocol="anthropic")
@@ -7424,59 +7449,63 @@ def attach_macos_api_routes(app: FastAPI):
         msg_id = f"msg_{uuid.uuid4().hex[:22]}"
 
         if not stream:
-            parser = _IncrementalQwenStreamParser(start_in_thinking=start_in_thinking)
-            think_parts: List[str] = []
-            text_parts: List[str] = []
-            try:
-                for piece in streamer:
-                    for kind, val in parser.feed(piece):
-                        if kind == "thinking":
-                            think_parts.append(val)
-                        elif kind == "text":
-                            text_parts.append(val)
-            finally:
-                cancel_event.set()
-            tail_events, tool_calls = parser.finish()
-            for kind, val in tail_events:
-                if kind == "thinking":
-                    think_parts.append(val)
-                elif kind == "text":
-                    text_parts.append(val)
-            gen_thread.join(timeout=5.0)
-            if err_box[0] is not None:
-                return JSONResponse(
-                    status_code=500,
-                    content={"type": "error", "error": {"type": "api_error", "message": str(err_box[0])}},
+            # 非流式生成可能持续数分钟，同步 drain 必须放入线程池，避免阻塞事件循环
+            def _drain_anthropic_nonstream():
+                parser = _IncrementalQwenStreamParser(start_in_thinking=start_in_thinking)
+                think_parts: List[str] = []
+                text_parts: List[str] = []
+                try:
+                    for piece in streamer:
+                        for kind, val in parser.feed(piece):
+                            if kind == "thinking":
+                                think_parts.append(val)
+                            elif kind == "text":
+                                text_parts.append(val)
+                finally:
+                    cancel_event.set()
+                tail_events, tool_calls = parser.finish()
+                for kind, val in tail_events:
+                    if kind == "thinking":
+                        think_parts.append(val)
+                    elif kind == "text":
+                        text_parts.append(val)
+                gen_thread.join(timeout=5.0)
+                if err_box[0] is not None:
+                    return JSONResponse(
+                        status_code=500,
+                        content={"type": "error", "error": {"type": "api_error", "message": str(err_box[0])}},
+                    )
+
+                full_thinking = "".join(think_parts).strip()
+                full_text, extra_tools = _extract_qwen_tool_calls("".join(text_parts).strip())
+                all_tools = tool_calls + extra_tools
+
+                content_blocks: List[Dict[str, Any]] = []
+                if full_thinking:
+                    content_blocks.append({"type": "thinking", "thinking": full_thinking, "signature": "qwen38-sig"})
+                if full_text or not all_tools:
+                    content_blocks.append({"type": "text", "text": full_text})
+                for tc in all_tools:
+                    content_blocks.append({"type": "tool_use", "id": tc["id"], "name": tc["name"], "input": tc["arguments"]})
+
+                final_prompt_tokens = int(getattr(streamer, "prompt_tokens", prompt_tokens) or prompt_tokens)
+                out_tokens = int(getattr(streamer, "generated_tokens", 0)) or (
+                    _count_bundle_tokens(bundle, full_thinking + full_text) if (full_thinking or full_text) else 1
                 )
+                stop_reason = "tool_use" if all_tools else "end_turn"
 
-            full_thinking = "".join(think_parts).strip()
-            full_text, extra_tools = _extract_qwen_tool_calls("".join(text_parts).strip())
-            all_tools = tool_calls + extra_tools
+                return {
+                    "id": msg_id,
+                    "type": "message",
+                    "role": "assistant",
+                    "model": req_model,
+                    "content": content_blocks,
+                    "stop_reason": stop_reason,
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": final_prompt_tokens, "output_tokens": out_tokens},
+                }
 
-            content_blocks: List[Dict[str, Any]] = []
-            if full_thinking:
-                content_blocks.append({"type": "thinking", "thinking": full_thinking, "signature": "qwen38-sig"})
-            if full_text or not all_tools:
-                content_blocks.append({"type": "text", "text": full_text})
-            for tc in all_tools:
-                content_blocks.append({"type": "tool_use", "id": tc["id"], "name": tc["name"], "input": tc["arguments"]})
-
-            final_prompt_tokens = int(getattr(streamer, "prompt_tokens", prompt_tokens) or prompt_tokens)
-            out_tokens = int(getattr(streamer, "generated_tokens", 0)) or (
-                _count_bundle_tokens(bundle, full_thinking + full_text) if (full_thinking or full_text) else 1
-            )
-            stop_reason = "tool_use" if all_tools else "end_turn"
-
-            return {
-                "id": msg_id,
-                "type": "message",
-                "role": "assistant",
-                "model": req_model,
-                "content": content_blocks,
-                "stop_reason": stop_reason,
-                "stop_sequence": None,
-                "usage": {"input_tokens": final_prompt_tokens, "output_tokens": out_tokens},
-            }
+            return await run_in_threadpool(_drain_anthropic_nonstream)
 
         def _anthropic_sse_event(ev_name: str, payload: Dict[str, Any]) -> str:
             return f"event: {ev_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -7649,7 +7678,7 @@ def attach_macos_api_routes(app: FastAPI):
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
         )
 
-    @app.post("/minimax_api/download_model")
+    @app.post(API_BASE + "/minimax_api/download_model")
     def api_download_model(req: DownloadModelRequest):
         touch_activity()
         target_id = req.model_id if (req.model_id and req.model_id in MODEL_CATALOG) else SELECTED_MODEL_ID
@@ -7662,7 +7691,7 @@ def attach_macos_api_routes(app: FastAPI):
             t.start()
         return get_gpu_status_dict(model_id=target_id)
 
-    @app.post("/minimax_api/load_model")
+    @app.post(API_BASE + "/minimax_api/load_model")
     def api_load_model(req: LoadModelRequest):
         global QWEN_CONTEXT_LENGTH
         touch_activity()
@@ -7678,13 +7707,13 @@ def attach_macos_api_routes(app: FastAPI):
             t.start()
         return get_gpu_status_dict(model_id=target_id)
 
-    @app.post("/minimax_api/unload_model")
+    @app.post(API_BASE + "/minimax_api/unload_model")
     def api_unload_model(req: UnloadModelRequest):
         touch_activity()
         unload_model_from_vram_core(req.model_id or None)
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.post("/minimax_api/cancel")
+    @app.post(API_BASE + "/minimax_api/cancel")
     def api_cancel_generation():
         global CURRENT_STAGE_BAR_LABEL
         touch_activity()
@@ -7710,7 +7739,7 @@ def attach_macos_api_routes(app: FastAPI):
         threading.Thread(target=_clear_abort_after_release, daemon=True).start()
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.post("/minimax_api/generate")
+    @app.post(API_BASE + "/minimax_api/generate")
     def api_generate(req: GenerateVideoRequest):
         touch_activity()
         target_model_id = (
@@ -7791,7 +7820,7 @@ def attach_macos_api_routes(app: FastAPI):
         t.start()
         return JOBS[job_id]
 
-    @app.get("/minimax_api/job/{job_id}")
+    @app.get(API_BASE + "/minimax_api/job/{job_id}")
     def api_job_status(job_id: str):
         if job_id not in JOBS:
             raise HTTPException(status_code=404, detail="Job not found")
@@ -7804,8 +7833,8 @@ def attach_macos_api_routes(app: FastAPI):
         res["telemetry"] = get_live_telemetry_snapshot()
         return res
 
-    @app.get("/minimax_api/video/{filename}")
-    @app.get("/minimax_api/media/{filename}")
+    @app.get(API_BASE + "/minimax_api/video/{filename}")
+    @app.get(API_BASE + "/minimax_api/media/{filename}")
     def api_download_media(filename: str):
         touch_activity()
         safe_name = os.path.basename(filename)
@@ -7827,7 +7856,7 @@ def attach_macos_api_routes(app: FastAPI):
         )
         return FileResponse(file_path, media_type=mime, filename=safe_name)
 
-    @app.post("/minimax_api/disconnect")
+    @app.post(API_BASE + "/minimax_api/disconnect")
     def api_disconnect():
         msg = disconnect_colab_runtime()
         return {"ok": True, "message": msg}
@@ -7835,11 +7864,11 @@ def attach_macos_api_routes(app: FastAPI):
     # --------------------------------------------------------------------------
     # ComfyUI 云端节点工作台与 Google Drive 持久化专用接口 (/minimax_api/comfyui/*)
     # --------------------------------------------------------------------------
-    @app.get("/minimax_api/comfyui/status")
+    @app.get(API_BASE + "/minimax_api/comfyui/status")
     def api_comfyui_status():
         return {"ok": True, "comfyui": get_comfyui_status_dict()}
 
-    @app.post("/minimax_api/comfyui/start")
+    @app.post(API_BASE + "/minimax_api/comfyui/start")
     def api_comfyui_start(req: ComfyStartRequest):
         touch_activity()
         if not COMFYUI_STATE["is_starting"]:
@@ -7850,13 +7879,13 @@ def attach_macos_api_routes(app: FastAPI):
             ).start()
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.post("/minimax_api/comfyui/stop")
+    @app.post(API_BASE + "/minimax_api/comfyui/stop")
     def api_comfyui_stop():
         touch_activity()
         stop_comfyui_core(sync_before_stop=True)
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.post("/minimax_api/comfyui/free_vram")
+    @app.post(API_BASE + "/minimax_api/comfyui/free_vram")
     def api_comfyui_free_vram():
         touch_activity()
         ok, msg = free_comfyui_vram_core()
@@ -7865,7 +7894,7 @@ def attach_macos_api_routes(app: FastAPI):
         res["action_message"] = msg
         return res
 
-    @app.post("/minimax_api/comfyui/sync_drive")
+    @app.post(API_BASE + "/minimax_api/comfyui/sync_drive")
     def api_comfyui_sync_drive():
         touch_activity()
         ok, msg = sync_comfyui_to_drive_core(quiet=False)
@@ -7874,7 +7903,7 @@ def attach_macos_api_routes(app: FastAPI):
         res["action_message"] = msg
         return res
 
-    @app.post("/minimax_api/comfyui/download_weight")
+    @app.post(API_BASE + "/minimax_api/comfyui/download_weight")
     def api_comfyui_download_weight(req: ComfyWeightDownloadRequest):
         touch_activity()
         if not COMFYUI_STATE["is_downloading_weight"]:
@@ -7885,7 +7914,7 @@ def attach_macos_api_routes(app: FastAPI):
             ).start()
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.post("/minimax_api/comfyui/install_pack")
+    @app.post(API_BASE + "/minimax_api/comfyui/install_pack")
     def api_comfyui_install_pack(req: ComfyInstallPackRequest):
         touch_activity()
         if not COMFYUI_STATE["is_downloading_weight"] and not COMFYUI_STATE.get("installing_pack_id"):
@@ -7896,7 +7925,7 @@ def attach_macos_api_routes(app: FastAPI):
             ).start()
         return get_gpu_status_dict(model_id=SELECTED_MODEL_ID)
 
-    @app.get("/minimax_api/comfyui/output_media/{rel_path:path}")
+    @app.get(API_BASE + "/minimax_api/comfyui/output_media/{rel_path:path}")
     def api_comfyui_output_media(rel_path: str):
         touch_activity()
         comfy_root, persist_root, _, _, _ = _resolve_comfyui_persistence_paths()
@@ -7904,7 +7933,8 @@ def attach_macos_api_routes(app: FastAPI):
             if not os.path.isdir(base_out):
                 continue
             cand = os.path.normpath(os.path.join(base_out, rel_path))
-            if not os.path.abspath(cand).startswith(os.path.abspath(base_out)):
+            # commonpath 严格限制在 base_out 内；startswith 会放行 outputX 这类同级前缀目录
+            if os.path.commonpath([os.path.abspath(cand), os.path.abspath(base_out)]) != os.path.abspath(base_out):
                 raise HTTPException(status_code=400, detail="Invalid output path")
             if os.path.isfile(cand):
                 safe_name = os.path.basename(cand)
@@ -7919,6 +7949,24 @@ def attach_macos_api_routes(app: FastAPI):
                 )
                 return FileResponse(cand, media_type=mime, filename=safe_name)
         raise HTTPException(status_code=404, detail="ComfyUI output file not found")
+
+    # ---- 裸路径兼容层：未带 /k/<密钥> 前缀的旧路径一律 403，防止 gradio.live URL 泄露后 API 被直接调用 ----
+    def _legacy_denied(request: Request):
+        return JSONResponse(
+            status_code=403,
+            content={"error": "本实例已启用路径密钥：请使用启动日志输出的完整服务地址（含 /k/<token> 段）访问 API。"},
+        )
+
+    @app.api_route("/minimax_api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"])
+    async def _legacy_minimax_api(request: Request, rest: str = ""):
+        return _legacy_denied(request)
+
+    @app.api_route("/v1/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"])
+    async def _legacy_v1(request: Request, rest: str = ""):
+        return _legacy_denied(request)
+
+    for _bare_path in ("/models", "/chat/completions", "/images/generations", "/messages", "/messages/count_tokens"):
+        app.add_api_route(_bare_path, _legacy_denied, methods=["GET", "POST"])
 
 
 # ==============================================================================
@@ -7997,7 +8045,7 @@ RESOLUTION_CHOICES_EN = [
     ("832 × 480 (16:9 Landscape · Recommended)", "832 × 480 (16:9 横屏标准 - 推荐)"),
     ("480 × 832 (9:16 Portrait Short)", "480 × 832 (9:16 竖屏短视频)"),
     ("1280 × 720 (16:9 720P HD)", "1280 × 720 (16:9 720P 高清)"),
-    ("720 × 1280 (9:16 720P Portrait HD)", "720 × 1280 (9:16 720P 竖屏高清)"),
+    ("720 × 1280 (9:16 720P Portrait)", "720 × 1280 (9:16 720P 竖屏高清)"),
     ("640 × 640 (1:1 Square)", "640 × 640 (1:1 方形)"),
 ]
 
@@ -8348,6 +8396,9 @@ def create_ui() -> gr.Blocks:
 
 
 if __name__ == "__main__":
+    # /v1 网关必须始终有密钥：未配置时启动即自动生成随机密钥（见下方输出），避免空密钥裸奔
+    if not (API_AUTH_KEY or "").strip():
+        API_AUTH_KEY = secrets.token_urlsafe(18)
     ui = create_ui()
     ui.queue()
     app, local_url, share_url = ui.launch(
@@ -8359,8 +8410,11 @@ if __name__ == "__main__":
         css=CUSTOM_CSS,
     )
     attach_macos_api_routes(app)
+    full_api_url = ((share_url or local_url) or "").rstrip("/") + "/k/" + RUNTIME_SECRET
     print("\n" + "=" * 72)
-    print("🍎 【macOS 原生 App 连接地址】请复制下方链接粘贴到 Mac 客户端：")
-    print(f"👉  {share_url or local_url}")
+    print("🍎 【EasyColab 服务地址】请复制下方完整链接（含 /k/ 密钥段）粘贴到客户端：")
+    print(f"👉  {full_api_url}")
+    print(f"🔑 OpenAI / Anthropic 协议 API Key: {API_AUTH_KEY}")
+    print("（客户端与 Claude Code / Cursor 等工具均需使用此地址与密钥；裸域名仅开放网页界面）")
     print("=" * 72 + "\n")
     ui.block_thread()
