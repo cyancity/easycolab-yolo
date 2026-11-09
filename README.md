@@ -22,6 +22,8 @@ python -m venv .venv
 
 浏览器打开 `http://127.0.0.1:8790/`，在 Chrome 地址栏点「安装」即成桌面应用。在账号页添加 Google 账号，新建部署时按「账号 × 显卡」矩阵选机器。外部 agent 统一调用 `http://127.0.0.1:8790/v1`，密钥在界面里复制。
 
+申请实例默认不带 `shape=hm`（与官方 colab-cli 一致；2026-11-10 实测带 hm 的 T4 在免费档和 Ultra 账号上都返回 503）。`POST /api/deploy` 的 `params` 可以加两个开关：`high_mem: true` 给 T4/A100 申请大内存规格，`probe: true` 只发一次分配请求、503 不重试。
+
 界面开发可以用样例数据，不碰真实 Colab：`http://127.0.0.1:8790/?mock=daily`（另有 `trouble`、`fresh`、`offline`）。
 
 ## 修改 Colab 端代码后
