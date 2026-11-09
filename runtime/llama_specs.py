@@ -69,7 +69,7 @@ SPECS = {
             "shared": ("MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf", 2786568256),
         },
         "default_kv": "q8_0",
-        "default_ctx_k": 512,
+        "default_ctx_k": 256,                   # native 262,144: no YaRN; 512 still selectable (owner choice 2026-11-10)
         "max_ctx_k": 1024,
         "native_ctx": 262144,                    # above this the command adds static YaRN (factor = ctx / native)
         "draft_n": 2,
