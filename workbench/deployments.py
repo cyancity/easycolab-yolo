@@ -394,7 +394,8 @@ def bench(d: dict):
         return
     d["bench"] = res
     ok = res["tps"] >= catalog.SLO["tpsMin"]
-    event(d, "ok" if ok else "warn", f"自测：单流 {res['tps']} tok/s，首字 {res['ttft']} s")
+    srv = f"（服务端 {res['srv_tps']} tok/s）" if res.get("srv_tps") else ""
+    event(d, "ok" if ok else "warn", f"自测：单流 {res['tps']} tok/s{srv}，首字 {res['ttft']} s")
 
 
 # ---------- 停止与释放 ----------
