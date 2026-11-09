@@ -1,7 +1,7 @@
 // 模型目录、显卡和达标线：取自 2026-11-10 本机 /api/state 快照，只含公开目录信息
 export const CATALOG = {
   "slo": {
-    "ctxMin": 300,
+    "ctxMin": 256,
     "tpsMin": 100,
     "tpsGoal": 150,
     "fillGoal": 75
@@ -42,13 +42,14 @@ export const CATALOG = {
       "runtime": "llama",
       "size": "UD-IQ4_XS · 93.7 GB",
       "spec": "180B MoE · 6B 激活",
-      "ctx": 512,
-      "tps": "100–170",
+      "ctx": 256,
+      "ctx_max": 512,
+      "tps": "108–136",
       "slo": "ok",
       "ready": true,
       "load": {
         "precision_mode": "bf16",
-        "context_length": 524288
+        "context_length": 262144
       },
       "fit": {
         "H100": {
@@ -98,7 +99,7 @@ export const CATALOG = {
         },
         "A100": {
           "tps": "≈150–220",
-          "fill": 11,
+          "fill": 22,
           "cls": "low",
           "note": "链路验证，非达标线"
         },
@@ -124,7 +125,7 @@ export const CATALOG = {
       "size": "UD-Q4_K_M · 18.7 GB",
       "spec": "27B Dense",
       "ctx": 256,
-      "tps": "≈55–80",
+      "tps": "≈60–87",
       "slo": "bad",
       "ready": true,
       "load": {
@@ -139,7 +140,7 @@ export const CATALOG = {
         },
         "A100": {
           "tps": "≈60",
-          "fill": 41,
+          "fill": 82,
           "cls": "low",
           "rec": true
         },
@@ -149,9 +150,10 @@ export const CATALOG = {
           "cls": "low"
         },
         "G4": {
-          "tps": "≈55",
-          "fill": 34,
-          "cls": "low"
+          "tps": "87",
+          "fill": 32,
+          "cls": "low",
+          "note": "2026-11-10 实测 · MTP · 256K"
         }
       }
     },
@@ -171,11 +173,6 @@ export const CATALOG = {
         "context_length": 131072
       },
       "fit": {
-        "A100": {
-          "tps": "≈35",
-          "fill": 80,
-          "cls": "low"
-        },
         "H100": {
           "tps": "≈45",
           "fill": 80,
@@ -203,8 +200,9 @@ export const CATALOG = {
       "fit": {
         "A100": {
           "tps": "4 s/张",
-          "fill": 48,
-          "cls": "low"
+          "fill": 96,
+          "cls": "low",
+          "note": "40GB 偏紧，未实测"
         },
         "H100": {
           "tps": "2.5 s/张",
@@ -239,8 +237,9 @@ export const CATALOG = {
         },
         "A100": {
           "tps": "1.2 s/张",
-          "fill": 45,
-          "cls": "low"
+          "fill": 90,
+          "cls": "low",
+          "note": "40GB 偏紧，未实测"
         },
         "H100": {
           "tps": "0.8 s/张",

@@ -44,10 +44,10 @@ MODELS = [
     },
     {
         "id": "q27gguf", "app_id": "qwen38_27b_gguf", "name": "Qwen3.8-27B GGUF", "kind": "语言",
-        "size": "UD-Q4_K_M · 18.7 GB", "spec": "27B Dense", "ctx": 256, "tps": "≈55–80", "slo": "bad",
+        "size": "UD-Q4_K_M · 18.7 GB", "spec": "27B Dense", "ctx": 256, "tps": "≈60–87", "slo": "bad",
         "ready": True, "load": {"precision_mode": "bf16", "context_length": 131072},
         "fit": {"L4": _f("≈30", 92, "low"), "A100": _f("≈60", 82, "low", rec=True),
-                "H100": _f("≈80", 41, "low"), "G4": _f("≈55", 34, "low")},
+                "H100": _f("≈80", 41, "low"), "G4": _f("87", 32, "low", note="2026-11-10 实测 · MTP · 256K")},
     },
     {
         "id": "q27", "app_id": "qwen38_27b", "name": "Qwen3.8-27B", "kind": "语言",
