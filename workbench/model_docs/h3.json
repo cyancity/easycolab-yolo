@@ -143,6 +143,69 @@
       },
       "source": "app.py PRESET_EXAMPLES",
       "source_note": "EasyColab 原版内置示例"
+    },
+    {
+      "title": "3x3硬科幻故事板分镜动效（沙丘风格）",
+      "scene": "结合3x3故事板多画格参考图，生成沙漠硬科幻探险的分镜连续动作视频",
+      "prompt": "Epic desert sci-fi, harsh golden-hour light, volumetric sand haze, anamorphic lens flares, subtle handheld drift, heavy atmospheric particles, 35mm film texture. Use the provided 3x3 grid as the only visual reference. Lock the exact same woman (face, scars, green eyes, headscarf, desert armor, cape) and environments from every panel. Do not invent new outfits or faces. [TIMELINE] 0-1.7s: [Wide establishing] Lone figure walking across endless dunes toward twin massive suns. Heat shimmer, long shadow stretching behind her. 1.7-3.4s: [Extreme close-up] Her scarred face fills the frame. Eyes locked on camera, wind tugging the dirty headscarf, grit on skin, unblinking intensity. 3.4-5.1s: [Tight detail insert] Gloved hand grips the rusted multi-tool weapon. Metal catches the orange light, cable dangling, fingers adjusting the grip with quiet precision. 5.1-6.8s: [Low wide silhouette] The towering industrial structure rises against the giant sun. Dust storms swirl at its base, scale feeling ancient and oppressive. 6.8-8.5s: [Medium tracking] She advances through thick sandstorm, lower face wrapped, cape and scarf whipping hard. Eyes visible above the cloth, determined stride. 8.5-10.2s: [Hero wide] She stands alone on the rocky outcrop, cape flowing, surveying the empty desert below. Wind howls, silhouette sharp against the hazy sky. 10.2-11.9s: [Dynamic tracking + low angle] She charges down the steep dune face, boots kicking up thick clouds of sand, body leaning forward with full momentum. 11.9-13.6s: [Macro atmospheric] Golden sand particles explode and float in extreme slow motion, backlit by the blazing sun, pure texture and light. 13.6-15s: [Intimate close-up] Inside the dark cave, shafts of light cut through. She sits against the rock, armor dusted, breathing controlled, eyes sharp and watching the entrance. Photorealistic, ultra-detailed skin and fabric textures, perfect sand physics, coherent character identity across every cut, cinematic color grade, heavy film grain, no artifacts, movie-level continuity.",
+      "params": {
+        "duration": "15s",
+        "fps": 24,
+        "aspect_ratio": "16:9"
+      },
+      "source": "https://x.com/techhalla/status/2082611424824623135",
+      "source_note": "作者 @techhalla，2026-07-29，提示词在作者本人回复里；主帖 90 赞 / 3 转帖 / 50 书签，回复 15 赞（2026-11-10 读），原文"
+    },
+    {
+      "title": "影视级角色出场介绍（由远及近全身定格）",
+      "scene": "绑定单一角色参考图，按局部特写、半身环绕、面部肖像、全身定格四段式推进的角色亮相",
+      "prompt": "MiniMax H3 Character Introduction Prompt: Use @[char ref] as the sole character reference. Preserve the exact identity, face, body proportions, hairstyle, outfit, colors, materials and overall silhouette of the character throughout the entire video. Do not redesign, simplify or replace any defining visual features. Create a cinematic character introduction focused on presence, silhouette, attitude and controlled motion. 0–4s Begin with a close shot of a defining lower-body or detail element such as boots, shoes, feet, hands, clothing hem or an important accessory. The character enters frame or settles into position. The camera slowly tracks upward while hair, clothing and secondary elements move naturally in the wind or environment. 4–8s Reveal more of the body with a medium or medium-wide shot from the back, side or three-quarter angle. The character stands in a calm, composed way inside the environment. The camera makes a smooth orbit, arc or lateral move to gradually reveal the character’s face and silhouette. 8–12s Move into a tight cinematic portrait or upper-body shot. The character performs one subtle signature action that fits their personality, such as lifting the chin, turning the head, adjusting clothing, brushing hair aside, opening a hand, looking toward camera, or shifting posture. Keep the motion minimal and intentional. The expression should match the character’s vibe. 12–15s End with a strong full-body hero shot that clearly presents the entire design and silhouette. Use a low-angle, eye-level or slightly dramatic framing depending on the character’s personality. The character settles into a natural final pose and holds it confidently for a clean final reveal. VISUAL DIRECTION Premium cinematic presentation. Match the visual medium and rendering style of @[char ref]. Emphasize clean silhouette, elegant staging, subtle secondary motion, believable hair and cloth movement, strong composition, atmospheric depth and polished lighting. The scene should feel like a high-end anime, game or film character introduction. CAMERA Use a clear progression from detail reveal to partial reveal to face reveal to full-body hero reveal. Camera movement should be smooth, controlled and intentional. Avoid chaotic motion. ENVIRONMENT Place the character in a fitting environment that supports their identity and mood. The background should enhance the character without distracting from them.",
+      "params": {
+        "duration": "15s"
+      },
+      "source": "https://x.com/aimikoda/status/2086412223061135392",
+      "source_note": "作者 @aimikoda，发帖日期 2026-08-09，原文"
+    },
+    {
+      "title": "单行提示词漫画图动效解析",
+      "scene": "仅凭单行提示词驱动漫画静态分镜与排版文字生成解释性动态视频",
+      "prompt": "フレームごとに展開されるタイポグラフィーとイラストの漫画解説アニメ。",
+      "source": "https://x.com/seiiiiiiiiiiru/status/2093905392787165663",
+      "source_note": "作者 @seiiiiiiiiiiru，发帖日期 2026-08-30，424 点赞 / 66 转发 / 518 收藏 / 37.2K 浏览，原文"
+    },
+    {
+      "title": "单镜头山脊呼喊与回声对齐（带对白与拟音）",
+      "scene": "徒步者在山脊向峡谷大喊，镜头持续后拉抬升全景，声音自然延迟衰减多重回声",
+      "prompt": "integrated_multimodal_description: [Shot 1] Live-action, cinematic and photorealistic. The young female hiker shown in <Picture 1> remains on the narrow mountain ridge, preserving her exact facial identity, natural skin texture, brown hair, red insulated hiking jacket, backpack straps, body proportions, front-facing orientation, lighting, background mountains and initial composition. The camera begins in the close head-and-shoulders framing established by <Picture 1>. She remains unaware of the camera and keeps her eyes fixed on one distant point in the valley ahead. A light mountain wind moves only a few loose strands of her hair and slightly shifts the fabric around her collar. She takes one natural breath, gently raises her chin and loudly calls into the valley. The young woman with a clear, strong, natural American voice (S1) shouts with joyful energy: <d>[English] Helloooooooo!</d> Her lips, jaw, cheeks, throat and chest move naturally with the sustained call. Her arms remain relaxed beside her body. Her feet, hips, shoulders and head remain oriented in the same direction; she does not rotate, step, turn, or follow the camera with her eyes. As she begins shouting, the camera pulls out with large amplitude at slow speed while pedestaling upward with small amplitude at slow speed. It travels directly backward along the same optical axis, progressing continuously from a close portrait to a chest-up frame, then to a full-body view, and finally to a wide view of the ridge and surrounding valley. The camera does not orbit, truck sideways, pan around her, or use a digital zoom. Realistic parallax reveals the steep grassy slopes, distant layered mountains and deep valley while the horizon remains stable. As the camera moves farther away, her direct voice becomes quieter and more distant. After a short natural delay, the final syllable reflects first from the left mountain wall and then more softly from the right side of the valley, creating separated stereo echoes that gradually become quieter and more diffuse. She completes the call and remains standing in exactly the same place and orientation. By the end of the shot, she appears as a small red figure on the vast green ridge while the final distant echo fades naturally across the valley.",
+      "sound": "Separated stereo echoes reflecting first from the left mountain wall and then more softly from the right side of the valley, gradually becoming quieter and more diffuse.",
+      "params": {
+        "duration": "9s",
+        "aspect_ratio": "16:9"
+      },
+      "source": "https://x.com/itsphotogptai/status/2084603317368578366",
+      "source_note": "作者 @itsphotogptai，发帖日期 2026-08-04，原文"
+    },
+    {
+      "title": "精确时间戳动态文字转场（Fal H3 Max）",
+      "scene": "使用时间戳精确定义每个区间显示的英文短句与运动，以文字负空间作为转场遮罩",
+      "prompt": "0.00-1.50  WHAT IF\n1.50-3.20  A WORD\n3.20-4.70  ENTER THE LETTER O\n4.70-7.30  BECAME -> HORIZON\n7.30-8.80  A WORLD?\n8.80-10.00 O -> OPENING FRAME",
+      "params": {
+        "duration": "10s"
+      },
+      "source": "https://x.com/ailker/status/2093165511920046289",
+      "source_note": "作者 @ailker，2026-08-28，877 赞 / 101 转帖（2026-11-10 读）。取自长文里的时间戳段，原文；作者说完整提示词在 fal playground 链接里"
+    },
+    {
+      "title": "多参考图与音色克隆情景喜剧三镜头（Ref2VA全参考流）",
+      "scene": "咖啡厅环境图+萨摩耶犬多图+男女主角视频参考+女声原声音色参考，带笑声罐头的情景喜剧短剧",
+      "prompt": "subject_definitions:\n<Subject 1> is the coffee-shop environment in <Picture 1>, featuring an exposed brick wall, an orange tufted sofa with patterned pillows, a neon sign, and a wooden coffee table.\n<Subject 2> is the fluffy white Samoyed in <Picture 2>, <Picture 3>, and <Picture 4>, with thick white fur, pointed ears, a dark nose, and a curved tail.\n<Subject 3> is the young blonde woman in <Video 1>, with long blonde hair and a light-pink button-down shirt with rolled-up sleeves.\n<Subject 4> is the young man in <Video 2>, with short wavy brown hair and a dark-grey hoodie with drawstrings.\n<Audio 1> is the voice-timbre reference for <Subject 3> (S1), containing a spoken English vocal layer.\n\nsummary:\n[reference generation + audio reference] The target video shows <Subject 3> eating a cookie in <Subject 1>. <Subject 4> enters with <Subject 2>, which lunges toward the cookie. The three-shot exchange uses <Audio 1> as the voice-timbre reference for <Subject 3> and ends with a canned audience laugh.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the exposed brick wall, orange tufted sofa, patterned pillows, neon sign, and wooden coffee table are retained.\n<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - the Samoyed's thick white fur, pointed ears, dark nose, and curved tail are retained.\n<Subject 3> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the blonde woman's identity, long hair, and light-pink shirt are retained.\n<Subject 4> (appears in [Shot 1], [Shot 2]): fully_preserved - the young man's short wavy brown hair and dark-grey hoodie are retained.\n<Audio 1>: reference - its vocal timbre guides the dialogue delivery of <Subject 3> without copying the original signal.\n\ndetailed_description:\nThe target video uses a realistic multi-camera sitcom style with warm indoor lighting.\n[Shot 1] A medium shot establishes <Subject 1>, the coffee shop with its exposed brick wall, orange tufted sofa, patterned pillows, neon sign, and wooden coffee table. <Subject 3> (S1), the young woman with long blonde hair and a light-pink button-down shirt with rolled-up sleeves, sits on the sofa holding a chocolate-chip cookie. From the left, <Subject 4>, the young man with short wavy brown hair and a dark-grey hoodie with drawstrings, enters holding the leash of <Subject 2>, the thick-furred white Samoyed with pointed ears, a dark nose, and a curved tail. The dog lunges toward the cookie and pulls the leash taut. <Subject 3> (S1) jerks her hand back and, using the clear youthful voice timbre referenced from <Audio 1>, exclaims with light annoyance, <d>[English] Hey! Watch your dog!</d> She closes her lips and guards the cookie while <Subject 4> pulls the dog back.\n[Shot 2] At 00:03.000, the shot cuts to a close-up of <Subject 4> (S2), the young man in the dark-grey hoodie from Shot 1, sitting beside <Subject 3> on the sofa and holding <Subject 2> securely in his arms. <Subject 4> (S2) says in a casual young male voice with a playful tone and an easy conversational pace, <d>[English] He just likes cookies more than me.</d> He closes his mouth into an apologetic smile and strokes the dog's thick white fur.\n[Shot 3] At 00:05.000, the shot cuts to a close-up of <Subject 3> (S1), the blonde woman in the light-pink shirt from Shot 1. Her annoyance softens as she looks toward the Samoyed. <Subject 3> (S1) replies in the same clear youthful voice referenced from <Audio 1> with an amused cadence, <d>[English] Well, he has good taste at least.</d> She smiles and raises the cookie in a small toast-like gesture. A classic canned audience laugh begins immediately after the line and continues through the final frame.\n\noverall_soundscape:\nSoft indoor coffee-shop room tone continues throughout the scene.\n\nnon_diegetic_music:\nN/A",
+      "sound": "Soft indoor coffee-shop room tone continues throughout the scene.",
+      "music": "N/A",
+      "params": {
+        "duration": "7s"
+      },
+      "source": "https://github.com/MiniMax-AI/MiniMax-H3/blob/main/.agents/skills/h3-prompt-writing/references/ref-en.txt",
+      "source_note": "MiniMax-AI 官方 H3 技能库 Ref2VA 完整规范用例，原文"
     }
   ]
 }

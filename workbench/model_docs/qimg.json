@@ -185,6 +185,54 @@
       },
       "source": "https://github.com/QwenLM/Qwen-Image-2.1",
       "source_note": "原文；README Supported Aspect Ratios 示例，该示例实际取 1:1 尺寸；16:9 对应 2752×1536，可自行改用"
+    },
+    {
+      "title": "全景角色深度概念设定图（Character Sheet 双语排版）",
+      "scene": "绑定参考人物并锁定外貌，生成含三视图、表情集、核心道具、背景卡片、服装分层、细节特写的高清手绘概念设计总图",
+      "prompt": "With the character from the reference image as the sole subject, preserving her facial features, blue bob haircut with right-side bangs, large blue eyes, fair skin, body type, maid outfit style, and overall shy and unassuming demeanor unchanged, generate a horizontal panoramic character depth concept sheet (Character Sheet). The background is textured beige parchment paper, framed by a delicate lace border around the edges, with small white flower buds adorning each corner. The overall style is a 2D concept design sketch, featuring clean, sharp lines and unified lighting. At the top center, the title \"雷姆REM\" is written in elegant handwritten script font. At the center of the image is the full-body illustration of the character, gently lifting the front of her apron while slightly bowing, in a natural and lifelike pose. Surrounding this central illustration, the following sections are divided into distinct panels, each with a thin border and a heading in the format \"Chinese Name / English\": **雷姆REM** **Top-Left Panel \"三视图 / Three Views\"**: Displays three full-body views of the character in the same pose—front, side, and back—placed side by side. Below each view, the corresponding label is written in handwritten script font: \"正面 / Front\", \"侧面 / Side\", \"背面 / Back\". **Middle-Left Panel \"表情集 / Expression\"**: Contains four circular close-up headshots representing different expressions—shy, smiling, surprised, angry. Beneath each, the corresponding expression name is written in handwritten script font. **Bottom-Left Panel \"核心道具 / Key Items\"**: Displays three key props—feather duster, white short gloves, and silver tray—arranged separately without overlapping. Under each item, the name is labeled in handwritten script font: \"羽毛掸子\", \"白手套\", \"银托盘\". **Bottom-Left Corner \"背景设定 / Profile\"**: A plain text profile card written in handwritten script font, listing: \"名字：【雷姆】\" \"种族：鬼族·女仆\" \"身高：154cm\" \"生日：2月2日\" \"身份：宅邸见习女仆\" \"性格：害羞、认真、容易脸红\" **Top-Right Panel \"服装分层 / Clothing Layers\"**: Shows the individual components of the outfit—white lace apron dress, white ruffled shoulder shawl, black puffed sleeves, and black long glove sleeves—displayed separately without overlap. Each is labeled below in handwritten script font: \"蕾丝围裙裙\", \"荷叶边披肩\", \"泡泡袖\", \"长手套袖\". **Top-Right Secondary Panel \"发饰与配件 / Accessories\"**: Displays three accessories—white flower bud and black vine wreath, large pink bow hair ornament, and pink X-shaped hairpin—arranged separately. Each is labeled below in handwritten script font: \"花环发饰\", \"蝴蝶结发饰\", \"X形发夹\". **Middle-Right Panel \"材质特写 / Material Detail\"**: Four side-by-side close-ups showing lace mesh, satin sheen, cotton ruffle edges, and embroidery texture. Each is labeled below in handwritten script font: \"蕾丝网眼\", \"缎面光泽\", \"棉布褶边\", \"刺绣纹理\". **Middle-Right Secondary Panel \"细节特写 / Detail Close-ups\"**: Four side-by-side close-ups displaying blue eyes, wreath weaving detail, sleeve ruffle trim, and apron pocket. Each is labeled below in handwritten script font: \"眼睛细节\", \"花环细节\", \"袖口细节\", \"口袋细节\". **Bottom-Center Panel \"清洁提篮 / Cleaning Basket\"**: A wicker basket open on the left, with four cleaning items—cloth, small spray bottle, brush, and soap—taken out and laid out separately to the right, not overlapping. Each item is labeled below in handwritten script font: \"抹布\", \"小喷壶\", \"毛刷\", \"香皂\". **Bottom-Center Secondary Panel \"美妆与护理 / Beauty & Grooming\"**: Four beauty items—lipstick, powder compact, perfume, and hairbrush—arranged separately in a row, not overlapping. Each is labeled below in handwritten script font: \"口红\", \"粉饼\", \"香水\", \"发刷\". **Bottom-Center Tertiary Panel \"日常用品 / Daily Items\"**: Four everyday items—white porcelain teacup, small cat doll, embroidered handkerchief, and letter paper—arranged separately in a row, not overlapping. Each is labeled below in handwritten script font: \"白瓷茶杯\", \"小猫玩偶\", \"绣花手帕\", \"信纸\". **Bottom-Right Middle Panel \"日常穿搭 / Casual Look\"**: Displays the same character in a casual outfit—beige knit sweater, light blue long skirt, and white flats. Below, labeled in handwritten script font: \"日常穿搭 / Casual Look\". **Bottom-Right Corner \"场景一隅 / Scene\"**: A small scene illustration depicting the garden of the mansion she serves, with white railings.",
+      "params": {
+        "aspect_ratio": "horizontal panoramic"
+      },
+      "source": "https://x.com/geesehowardt7/status/2102196084244455696",
+      "source_note": "作者 @geesehowardt7，发帖日期 2026-09-22，原帖 1,398 浏览，回复 1K 浏览，原文"
+    },
+    {
+      "title": "8:1超宽比例滑雪场全景网页横幅（Header Strip）",
+      "scene": "4096x512 超极限比例单次生成，左右结构化展开的高级官网顶部大图",
+      "prompt": "A panoramic website header strip for an alpine ski resort, laid out left to right. On the far left, a timber mountain lodge with glowing windows and snow on its roof. In the center, a wide groomed piste with a few distant skiers carving turns. On the right, a chairlift climbing toward a sunlit ridge, and on the far right, jagged snowy peaks against a clear deep blue sky. Late afternoon sun from the right, clean snow in the foreground with no people and no shadows of people. Photoreal travel photography, crisp and bright, no text, no logos.",
+      "params": {
+        "width": 4096,
+        "height": 512,
+        "aspect_ratio": "8:1",
+        "promptExtend": false
+      },
+      "source": "https://runware.ai/docs/models/alibaba-qwen-image-2-1-pro/guides/prompting",
+      "source_note": "Runware 官方 Qwen-Image-2.1-Pro 指南，原文"
+    },
+    {
+      "title": "中英双语排版美妆护肤品宣传海报",
+      "scene": "护肤精华液展台静物摄影，中央精准渲染优雅中文标语“焕亮精华”与英文“RADIANCE SERUM”，左下角渲染“新品上市 / NEW ARRIVAL”",
+      "prompt": "A social media launch post for a skincare brand. A plain frosted glass serum bottle with a gold dropper and no label stands on a pale pink stone plinth against a warm blush background, with a soft shadow behind it. Above the bottle, centered, the Chinese headline \"焕亮精华\" in an elegant thin serif, with the English line \"RADIANCE SERUM\" directly beneath it in small, widely spaced capitals. In the lower left corner, a rounded white tag reads \"新品上市\" with \"NEW ARRIVAL\" beneath it in small capitals. No other text anywhere in the image. Clean beauty advertising layout, soft studio light, photoreal product, crisp typography.",
+      "params": {
+        "width": 1024,
+        "height": 1024,
+        "promptExtend": false
+      },
+      "source": "https://runware.ai/docs/models/alibaba-qwen-image-2-1-pro/guides/prompting",
+      "source_note": "Runware 官方 Qwen-Image-2.1-Pro 指南，原文"
+    },
+    {
+      "title": "4:1留白官网头部大图（带标题留白区）",
+      "scene": "4096x1024 超宽家居电商首页 Hero 图，左侧专门预留 1/3 纯净暖白墙壁作为标题排版区",
+      "prompt": "A wide homepage hero for an online furniture store: a long, bright living room laid out left to right. The left third of the frame is empty warm white wall, kept clear for a headline. In the center, a low three-seat sofa in terracotta linen with two cream cushions, behind a round travertine coffee table on a large jute rug. On the right, a pale oak sideboard with a trailing plant, and at the far right edge a tall window. Pale oak floorboards, soft morning daylight from the window. Photoreal interiors photography, eye-level straight-on view, calm warm palette, no people, no text.",
+      "params": {
+        "width": 4096,
+        "height": 1024,
+        "aspect_ratio": "4:1",
+        "promptExtend": false
+      },
+      "source": "https://runware.ai/docs/models/alibaba-qwen-image-2-1-pro/guides/prompting",
+      "source_note": "Runware 官方 Qwen-Image-2.1-Pro 指南，原文"
     }
   ]
 }
