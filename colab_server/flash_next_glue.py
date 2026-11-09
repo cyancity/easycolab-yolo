@@ -91,9 +91,18 @@ def flash_next_download_core(hf_token: str = "", model_id: str = FLASH_NEXT_ID) 
         MODEL_DOWNLOAD_STATE["is_downloading"] = False
 
 
+def _cache_ram_mb(want) -> int:
+    """提示词内存缓存上限：不超过本机内存的 35%（N-gram 表已常驻 26.8 GiB，G4 机器 176 GB）"""
+    try:
+        total_mb = int(open("/proc/meminfo").readline().split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        return 0
+    return max(0, min(int(want or 0), int(total_mb * 0.35)))
+
+
 def flash_next_load_core(options: Optional[Dict[str, Any]] = None, context_length: Optional[int] = None,
                          model_id: str = FLASH_NEXT_ID) -> Tuple[bool, str]:
-    """options: quant / kv / mtp (True) / draft_n，默认值与上下文默认/上限见 llama_specs.SPECS；不写入 QWEN_CONTEXT_LENGTH"""
+    """options: quant / kv / mtp (True) / draft_n / parallel / cache_ram_mb，默认值与上下文默认/上限见 llama_specs.SPECS；不写入 QWEN_CONTEXT_LENGTH"""
     touch_activity()
     if MODEL_DOWNLOAD_STATE["is_loading_vram"]:
         return False, "模型正在加载进显存中，请稍候..."
@@ -123,7 +132,9 @@ def flash_next_load_core(options: Optional[Dict[str, Any]] = None, context_lengt
             evicted = _ensure_vram_for_new_model_locked(model_id, min(plan["used_gib"], total_gb - 1.2))
             free_before = torch.cuda.mem_get_info("cuda")[0] / (1024 ** 3)
             port = fn.free_port(8091)
-            cmd = fn.build_command(paths, ctx // 1024, kv, mtp, port, int(o.get("draft_n") or 0) or None, binary=exe, threads=os.cpu_count(), spec=model_id)
+            cmd = fn.build_command(paths, ctx // 1024, kv, mtp, port, int(o.get("draft_n") or 0) or None, binary=exe,
+                                   threads=os.cpu_count(), spec=model_id, parallel=o.get("parallel"),
+                                   cache_ram_mb=_cache_ram_mb(o.get("cache_ram_mb", ls.get("cache_ram_mb", 0))))
             proc = fn.launch(cmd, FLASH_NEXT_LOG)
             MODEL_DOWNLOAD_STATE["progress"] = 0.55
 

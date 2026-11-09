@@ -360,13 +360,21 @@ def _ensure_weights(root: str, quant: str, mtp: bool, mtp_variant: str, spec: st
 # --- command / process ------------------------------------------------------------------------------------
 def build_command(paths: dict, ctx_k: int, kv: str, mtp: bool, port: int, draft_n: int | None = None,
                   host: str = "127.0.0.1", binary: str = "llama-server", threads: int | None = None,
-                  spec: str = DEFAULT_SPEC) -> list[str]:
+                  spec: str = DEFAULT_SPEC, parallel: int | None = None, cache_ram_mb: int | None = None) -> list[str]:
+    """parallel: request slots; >1 adds --kv-unified so the slots share one KV pool of `ctx_k` and a single request
+    can still use all of it.  cache_ram_mb: host-RAM prompt cache, so a long prefix (an agent's system prompt and
+    history) evicted from the slot is restored instead of prefilled again; 0 disables."""
     sp = _spec(spec)
     tokens = ctx_k * 1024
+    np_ = max(1, int(parallel or sp.get("parallel", 1)))
     cmd = [binary, "-m", paths["model"], "--alias", sp["alias"], "--host", host, "--port", str(port),
-           "-c", str(tokens), "-np", "1", "-ngl", "999", *sp["extra_args"],
+           "-c", str(tokens), "-np", str(np_), "-ngl", "999", *sp["extra_args"],
            "-fa", "on", "-ctk", kv, "-ctv", kv, "-b", "2048", "-ub", "1024",
            "--jinja", "--metrics", *sp["sampling"]]
+    if np_ > 1:
+        cmd += ["--kv-unified"]
+    if cache_ram_mb:
+        cmd += ["--cache-ram", str(int(cache_ram_mb))]
     if threads:
         cmd += ["-t", str(threads)]
     if tokens > sp["native_ctx"]:

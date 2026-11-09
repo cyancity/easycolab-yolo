@@ -73,6 +73,11 @@ SPECS = {
         "max_ctx_k": 1024,
         "native_ctx": 262144,                    # above this the command adds static YaRN (factor = ctx / native)
         "draft_n": 2,
+        # 4 slots sharing one KV pool (--kv-unified): agents can call in parallel and one request still gets the whole
+        # context.  Prompt cache in host RAM, capped by flash_next_glue at a share of the VM's memory.  Reference: G4
+        # 8 slots ~300 tok/s total, 40 each (github.com/crhywun/colab-llm notebook 03, author's measurement)
+        "parallel": 4,
+        "cache_ram_mb": 60000,
         # the 51B engram table lives in CPU RAM.  2026-11-10 on G4 without this flag the engram shard was still
         # CPU-mapped (26.8 GiB mapped, 0.6 GiB resident) and VRAM was 59.5 GB: llama.cpp keeps per-layer token
         # embeddings on the CPU by itself, so the flag only documents the intent
