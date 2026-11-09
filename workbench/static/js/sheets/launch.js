@@ -11,7 +11,9 @@ const STEP_NAMES = ["模型", "机器", "确认"];
 const ic = icon;
 
 export function newLaunch(model = null) {
-  ui.launch = { step: 1, dir: 1, model: model || ui.data.models.find((m) => m.ready)?.id, email: null, gpu: null, ctx: null, rec: null, busy: false };
+  // 传入的模型不存在或没就绪时退回第一个可部署的，免得按不存在的模型算矩阵
+  const ok = ui.data.models.some((m) => m.id === model && m.ready);
+  ui.launch = { step: 1, dir: 1, model: ok ? model : ui.data.models.find((m) => m.ready)?.id, email: null, gpu: null, ctx: null, rec: null, busy: false };
 }
 
 function cellState(m, a, g) {
@@ -83,7 +85,7 @@ function cell(m, a, g) {
   const L = ui.launch, s = cellState(m, a, g);
   if (s) return `<td><div class="sh-cell no" aria-disabled="true">${esc(s[1])}</div></td>`;
   const f = m.fit[g.id], key = `${a.email}|${g.id}`, on = L.email === a.email && L.gpu === g.id;
-  const label = `${g.id}，预估 ${f.tps}，显存 ${num(f.fill, 0)}%${L.rec === key ? "，推荐" : ""}`;
+  const label = `${a.label}，${g.id}，预估 ${f.tps}，显存 ${num(f.fill, 0)}%${L.rec === key ? "，推荐" : ""}`;
   return `<td><button class="sh-cell ${f.cls === "good" ? "good" : "low"}" role="radio" aria-checked="${on}" aria-label="${esc(label)}" data-cell="${esc(key)}">
     <span class="sh-tick">${ic("check", "check-in")}</span>
     ${L.rec === key ? `<span class="sh-rec">推荐</span>` : ""}
@@ -135,8 +137,8 @@ export function renderLaunch() {
       <button class="btn ghost icon-btn push" data-close aria-label="关闭">${icon("x")}</button></div>
     <div class="sheet-b" data-key="step-${L.step}" data-step="${L.step}" style="--dir:${L.dir || 1}">${body}</div>
     <div class="sheet-f"><span class="grow muted ellipsis">${summary}</span>
-      ${L.step > 1 ? `<button class="btn" data-back ${L.busy ? "disabled" : ""}>上一步</button>` : ""}
-      ${L.step < 3 ? `<button class="btn primary" data-next ${can ? "" : "disabled"}>下一步</button>`
-        : `<button class="btn primary" data-start ${can ? "" : "disabled"}>${L.busy ? ic("loader", "spin") : icon("rocket")}${L.busy ? "提交中" : "启动"}</button>`}
+      ${L.step > 1 ? `<button class="btn" data-key="f-back" data-back ${L.busy ? "disabled" : ""}>上一步</button>` : ""}
+      ${L.step < 3 ? `<button class="btn primary" data-key="f-next" data-next ${can ? "" : "disabled"}>下一步</button>`
+        : `<button class="btn primary" data-key="f-start" data-start ${can ? "" : "disabled"}>${L.busy ? ic("loader", "spin") : icon("rocket")}${L.busy ? "提交中" : "启动"}</button>`}
     </div></div></div>`;
 }

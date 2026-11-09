@@ -10,15 +10,15 @@ const hasComfy = (i) => typeof i.comfy_url === "string" && i.comfy_url.startsWit
 function actions(i) {
   const id = esc(i.id), out = [];
   if (i.status === "running") {
-    if (!isLLM(i) && ui.docs?.[i.model]?.templates?.length) out.push(`<button class="btn" data-open-model="${esc(i.model)}">${icon("sparkles")}模板</button>`);
-    if (hasComfy(i)) out.push(`<a class="btn" href="${esc(i.comfy_url)}" target="_blank" rel="noopener">${icon("workflow")}打开 ComfyUI</a>`);
-    if (isLLM(i)) out.push(`<button class="btn" data-bench="${id}">${icon("timer")}重新自测</button>`);
+    if (!isLLM(i) && ui.docs?.[i.model]?.templates?.length) out.push(`<button class="btn" data-key="a-tpl" data-open-model="${esc(i.model)}">${icon("sparkles")}模板</button>`);
+    if (hasComfy(i)) out.push(`<a class="btn" data-key="a-comfy" href="${esc(i.comfy_url)}" target="_blank" rel="noopener">${icon("workflow")}打开 ComfyUI</a>`);
+    if (isLLM(i)) out.push(`<button class="btn" data-key="a-bench" data-bench="${id}">${icon("timer")}重新自测</button>`);
     const arm = ui.confirm === i.id;
-    out.push(`<button class="btn danger ${arm ? "armed" : ""}" data-stop="${id}">${icon("square")}${arm ? "确认停止" : "停止"}</button>`);
+    out.push(`<button class="btn danger ${arm ? "armed" : ""}" data-key="a-stop" data-stop="${id}">${icon("square")}${arm ? "确认停止" : "停止"}</button>`);
   } else if (i.status === "starting") {
-    out.push(`<button class="btn danger" data-stop="${id}">${icon("square")}取消并释放</button>`);
+    out.push(`<button class="btn danger" data-key="a-cancel" data-stop="${id}">${icon("square")}取消并释放</button>`);
   } else if (i.status === "stopped" && i.model) {
-    out.push(`<button class="btn" data-redeploy="${id}">${icon("rotate-ccw")}重新部署</button>`);
+    out.push(`<button class="btn" data-key="a-redeploy" data-redeploy="${id}">${icon("rotate-ccw")}重新部署</button>`);
   }
   return out.join("");
 }
@@ -63,7 +63,7 @@ function headroom(i) {
   const s = slo(), vp = pct(i.vram_used, i.vram_total), reasons = [], tips = [];
   if (isLLM(i) && i.bench?.tps && i.bench.tps < s.tpsMin) {
     reasons.push(`单流 ${num(i.bench.tps, 0)} tok/s 低于 ${num(s.tpsMin, 0)}`);
-    if (i.model !== "flash-next") {
+    if (i.model !== "flash-next" && ui.data.models.some((m) => m.id === "flash-next" && m.ready)) {
       tips.push({ what: "换 Qwen3.8-Flash-Next", why: "MoE 每个 token 只算 6B 参数，G4 实测 100 / 170（MTP）tok/s；运行时下一期上线",
         act: `<button class="btn primary sm" data-quick="flash-next">${icon("rocket")}换 Qwen3.8-Flash-Next</button>` });
     }
@@ -103,14 +103,26 @@ function apiPanel(i) {
     </div><div class="code">${esc(snippet(i, g.key_masked, ui.apiTab))}</div></div></section>`;
 }
 
-/* ---------- 过程时间线：新的在上，key 用事件在原数组中的下标 ---------- */
+/* ---------- 过程时间线：新的在上 ---------- */
+// 后端只回最近 30 条，下标会随截断整体错位；key 取时间和内容，相同的再按出现次序区分
+function evKeys(list) {
+  const seen = new Map();
+  return list.map(([t, k, m]) => {
+    let h = 0;
+    for (const c of `${t}|${k}|${m}`) h = (h * 31 + c.charCodeAt(0)) | 0;
+    const base = (h >>> 0).toString(36), n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    return `ev-${base}-${n}`;
+  });
+}
 const EV_ICON = { ok: "check", info: "dot", warn: "triangle-alert", err: "circle-x" };
 
 function events(i) {
-  const evs = (i.events || []).map((e, idx) => [idx, ...e]).reverse();
+  const keys = evKeys(i.events || []);
+  const evs = (i.events || []).map((e, idx) => [keys[idx], ...e]).reverse();
   return `<section class="panel dt-events" data-key="d-events"><div class="panel-h">${icon("list")}过程</div>
     <div class="panel-b dt-tl" data-list>${evs.length ? evs.map(([idx, t, k, m]) =>
-      `<div class="dt-ev ${esc(k)}" data-key="ev-${idx}"><time>${esc(t)}</time>${icon(EV_ICON[k] || "dot")}<span class="dt-msg">${esc(m)}</span></div>`).join("")
+      `<div class="dt-ev ${esc(k)}" data-key="${idx}"><time>${esc(t)}</time>${icon(EV_ICON[k] || "dot")}<span class="dt-msg">${esc(m)}</span></div>`).join("")
       : `<span class="muted">暂无记录</span>`}</div></section>`;
 }
 

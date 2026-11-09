@@ -1,6 +1,6 @@
 // 工作台入口：渲染、轮询、事件
 import * as api from "./api.js";
-import { $, attention, esc, hoursLeft, icon, numTag, snippet, toast, ui } from "./util.js";
+import { $, DISMISS_KEY, attention, esc, hoursLeft, icon, numTag, safeUrl, snippet, toast, ui } from "./util.js";
 import { morph } from "./morph.js";
 import { readMs } from "./motion.js";
 import { viewOverview } from "./views/overview.js";
@@ -109,20 +109,27 @@ async function poll() {
   if (ui.view === "models" || !ui.docs) loadDocs();
   try { await api.refresh(); } catch { ui.offline = true; }
   ui.loading = false;
-  render();
+  // 先排下一次，渲染出错也不会让轮询停掉
   pollT = setTimeout(poll, document.hidden ? 10000 : 3000);
+  render();
 }
 
 async function copy(text) {
   try { await navigator.clipboard.writeText(text); } catch {
     const ta = Object.assign(document.createElement("textarea"), { value: text });
-    document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (!ok) throw new Error("复制失败，浏览器没有给剪贴板权限");
   }
   toast("已复制");
 }
 
+// 先拿到新状态再提示，提示触发的重绘才不会用旧数据把选中项重置掉
 async function act(fn, ok) {
-  try { await fn(); if (ok) toast(ok, "ok"); await api.refresh(); } catch (e) { toast(e.message, "err"); }
+  try { await fn(); } catch (e) { toast(e.message, "err"); render(); return; }
+  try { await api.refresh(); } catch { ui.offline = true; }
+  if (ok) toast(ok, "ok");
   render();
 }
 
@@ -160,12 +167,10 @@ const handlers = {
     L.busy = true;
     // 失败时恢复按钮并保留弹层，错误由 act 以 toast 提示
     act(async () => {
-      try {
-        const r = await api.deploy(L.model, L.email, L.gpu, params);
-        await api.refresh();   // 先拿到新实例，再切页选中，避免视图把选中项重置
-        ui.launch = null; ui.view = "instances"; ui.sel = r.id;
-      }
-      catch (e) { L.busy = false; throw e; }
+      let r;
+      try { r = await api.deploy(L.model, L.email, L.gpu, params); } catch (e) { L.busy = false; throw e; }
+      // 已提交就关弹层，之后的刷新失败也不能让人以为没部署而再点一次
+      ui.launch = null; ui.view = "instances"; ui.sel = r.id; ui.resetScroll = true;
     }, "已开始部署");
   },
   stop: (t) => {
@@ -186,7 +191,7 @@ const handlers = {
   redeploy: (t) => { newLaunch(inst(t.dataset.redeploy).model); recommend(); direct(2); },
   dismiss: (t) => {
     ui.dismissed.add(t.dataset.dismiss);
-    localStorage.setItem("dismissed", JSON.stringify([...ui.dismissed]));
+    localStorage.setItem(DISMISS_KEY, JSON.stringify([...ui.dismissed]));
   },
   group: (t) => { const g = t.dataset.group; ui.collapsed.has(g) ? ui.collapsed.delete(g) : ui.collapsed.add(g); },
   copy: (t) => copy(t.dataset.copy),
@@ -199,12 +204,17 @@ const handlers = {
   relogin: (t) => { ui.login = { step: 1, email: t.dataset.relogin }; },
   loginOpen: () => {
     // 先同步开窗口，避免被浏览器当成弹窗拦截
-    const w = window.open("about:blank", "_blank");
-    ui.login.busy = true;
+    const w = window.open("about:blank", "_blank"), g = ui.login;
+    g.busy = true;
     act(async () => {
-      const r = await api.loginStart(ui.login.email);
-      Object.assign(ui.login, { step: 2, pending_id: r.pending_id, auth_url: r.auth_url, busy: false, error: "" });
-      if (w) w.location = r.auth_url;
+      try {
+        const r = await api.loginStart(g.email);
+        const url = safeUrl(r.auth_url);
+        if (!url) throw new Error("授权地址无效");
+        if (ui.login !== g) { w?.close(); return; }   // 等待期间弹层已关
+        Object.assign(g, { step: 2, pending_id: r.pending_id, auth_url: url, busy: false, error: "" });
+        if (w) w.location = url;
+      } catch (e) { g.busy = false; w?.close(); throw e; }
     });
   },
   loginFinish: () => {
@@ -285,6 +295,8 @@ async function boot() {
   if (["daily", "trouble", "fresh", "offline"].includes(scn)) {
     await import("./mock/server.js");
     await import("./devbar.js");
+  } else if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js");
   }
   render();
   poll();

@@ -1,11 +1,7 @@
 // 模型页：左侧模型列表，右侧各卡适配、说明、优缺点、用法和模板
-import { bar, esc, icon, modelChip, ui } from "../util.js";
+import { bar, esc, icon, modelChip, safeUrl, ui } from "../util.js";
 import { hasCode } from "../callcode.js";
 
-// 来源和外链只放行 https，其余按纯文字显示
-function safeUrl(u) {
-  try { const x = new URL(String(u)); return x.protocol === "https:" ? x.href : ""; } catch { return ""; }
-}
 
 function source(s) {
   const text = String(s || "").trim();

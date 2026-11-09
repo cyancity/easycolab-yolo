@@ -64,7 +64,7 @@ function patch(el, nc, ctx) {
     }
     if (el._cur != null && prevNum === nc.dataset.num) return;
     stopCount(el);
-  }
+  } else if (prevNum != null) stopCount(el);   // 数字节点被复用成普通文本时停掉补间
   if (el.tagName === "TEXTAREA") { syncControl(el, nc); return; }
   patchChildren(el, nc, ctx);
   if (FORM.has(el.tagName)) syncControl(el, nc);
@@ -72,7 +72,9 @@ function patch(el, nc, ctx) {
 
 function cancelLeave(el) {
   clearTimeout(el._lt);
+  if (el._te) { el.removeEventListener("transitionend", el._te); el._te = null; }
   el._anim = false;
+  el.inert = false;
   el.classList.remove("is-leaving");
   el.removeAttribute("aria-hidden");
   el.style.pointerEvents = "";
@@ -84,11 +86,13 @@ function leave(el) {
   const fixed = getComputedStyle(el).position === "fixed";
   el._anim = true;
   el.setAttribute("aria-hidden", "true");
+  el.inert = true;   // 离场中不能再被聚焦或触发
   el.style.pointerEvents = "none";
   if (!fixed) { el.style.height = el.offsetHeight + "px"; el.style.overflow = "hidden"; void el.offsetHeight; }
   el.classList.add("is-leaving");
   const done = () => { clearTimeout(el._lt); el.remove(); };
-  el.addEventListener("transitionend", (e) => { if (e.target === el && e.propertyName === "height") done(); });
+  el._te = (e) => { if (e.target === el && e.propertyName === "height") done(); };
+  el.addEventListener("transitionend", el._te);
   el._lt = setTimeout(done, readMs("--duration-slow") + 60);
 }
 
@@ -119,7 +123,8 @@ function patchChildren(parent, np, ctx) {
     if (target && target.tagName !== nc.tagName) {
       if (target === cur) cur = nextLive(cur.nextSibling);
       keyed.delete(k);
-      parent.replaceChild(nc, target);
+      parent.insertBefore(nc, cur);   // 放到当前位置，不留在旧节点原处，否则伴随换位时顺序会错
+      target.remove();
       kept.add(nc);
       continue;
     }

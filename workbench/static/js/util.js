@@ -1,5 +1,5 @@
 // 公共小工具与界面状态
-import { fmtNum } from "./motion.js";
+import { fmtNum, readMs } from "./motion.js";
 
 export const $ = (s) => document.querySelector(s);
 export { icon } from "./icons.js";
@@ -36,6 +36,14 @@ export const meter = (p, cls = "") => `<span class="meter ${cls}"><i style="widt
 // 同 meter，宽度走 CSS 变量，换值时由 CSS 过渡
 export const bar = (p, cls = "") => `<span class="meter ${cls}" style="--p:${Math.min(Math.max(p || 0, 0), 100)}%"><i></i></span>`;
 
+// 样例模式的「知道了」单独存，不和真实实例 id 混在一起
+export const DISMISS_KEY = new URLSearchParams(location.search).get("mock") ? "proto.dismissed" : "dismissed";
+
+// 外链只放行 https，其余返回空串
+export function safeUrl(u) {
+  try { const x = new URL(String(u)); return x.protocol === "https:" ? x.href : ""; } catch { return ""; }
+}
+
 const stored = (k) => { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; } };
 
 export const ui = {
@@ -43,7 +51,7 @@ export const ui = {
   launch: null, login: null, toast: "", toastKind: "", toastId: 0,
   offline: false, loading: true,
   collapsed: new Set(["ended"]),
-  dismissed: new Set(stored("dismissed")),
+  dismissed: new Set(stored(DISMISS_KEY)),
   confirm: null, msel: null, docs: null, gen: {}, tplOpen: {}, resetScroll: false,
 };
 
@@ -52,7 +60,7 @@ export function toast(msg, kind = "") {
   ui.toastKind = kind;
   ui.toastId++;
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => { ui.toast = ""; document.dispatchEvent(new Event("rerender")); }, 4000);
+  toast.t = setTimeout(() => { ui.toast = ""; document.dispatchEvent(new Event("rerender")); }, readMs("--duration-toast") || 4000);
   document.dispatchEvent(new Event("rerender"));
 }
 

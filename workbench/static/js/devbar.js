@@ -9,7 +9,7 @@ const current = () => {
 const go = (mock) => {
   const q = new URLSearchParams(location.search);
   if (mock) q.set("mock", mock); else q.delete("mock");
-  localStorage.removeItem("dismissed");
+  localStorage.removeItem("proto.dismissed");
   location.search = q.toString();
 };
 
