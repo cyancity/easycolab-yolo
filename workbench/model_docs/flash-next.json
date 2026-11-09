@@ -1,11 +1,82 @@
 {
   "id": "flash-next",
   "name": "Qwen3.8-Flash-Next",
-  "hf": "https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF",
-  "summary": "语言模型，180B MoE、6B 激活，UD-IQ4_XS 量化 93.7 GB，上下文 512K，单流预估 100–170 tok/s。",
-  "facts": [],
-  "strengths": [],
+  "hf": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next",
+  "summary": "Qwen3.8-Flash-Next 是 Qwen4 所用架构的实验性预览：总参数 125B、每 token 激活 6B，另有 51B N-gram Embedding 与 4B MTP。48 层，Gated DeltaNet 与 QSA 混合注意力，512 专家（10 路由加 1 共享），原生上下文 262,144 可扩展到 1,000,000；许可证为 qwen-community-1.0。",
+  "facts": [
+    {
+      "text": "全模型总参数量为 125B（MoE 结构），单 Token 仅激活 6B 参数，外加 51B 的 N-gram Embedding 与 4B MTP 参数。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "网络深度为 48 层，隐藏层维度 2560，结构布局为 12 × (3 × (Gated DeltaNet → MoE) → 1 × (Qwen Sparse Attention → MoE))。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "混合注意力引入 QSA（Qwen Sparse Attention），在微块（Micro-Block）级别执行稀疏注意力检索，预算为 512 个块或 2048 个 Token，大幅缩减长文本延迟。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "MoE 专家路由配置：共 512 个专家，每个 Token 激活 10 个路由专家（Routed）+ 1 个共享专家（Shared），单个专家中间维度为 640。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "引入门控残差（Gated Residual）机制：4 条分支，瓶颈秩（Bottleneck Rank）为 320，通过数据依赖的读写门控动态调节加宽残差流。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "N-gram Embedding 包含 20,000,000 条 Bigram/Trigram 词表索引，为显存受限加速器提供低计算量的大参数扩展维度。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "开源模型采用 qwen-community-1.0 许可证；官方云端托管产品版本命名为 Qwen3.8-Flash。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    }
+  ],
+  "strengths": [
+    {
+      "text": "编程基准：DeepSWE 1.1 为 58.7（Qwen3.8-27B 42.2、DeepSeek-V4-Flash-0731 54.4）、SWE-bench Pro 62.5、SWE-bench Multilingual 81.0、LiveCodeBench v6 91.9。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "办公与工具调用基准：JobBench 55.7（Qwen3.8-27B 为 33.4）、CoWorkBench 73.9、Toolathlon Verified 73.5、Agents' Last Exam Score 51.2（Pass@1 24.3）。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "每 token 仅激活 6B 参数；QSA 在 micro-block 级别做稀疏检索，官方称可显著降低长上下文延迟。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "多模态基准：ClawEval-MM Pass@3 64.4、AndroidWorld 84.5、Vision2Web 64.0、MathVision 95.7（With CI；Without CI 为 90.6）。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "Unsloth Dynamic v3.1 GGUF：官方称相比其他同尺寸量化少用 50% token，推理快 0.5%-8%；另称 MTP 在 Unsloth 中可带来 1.3-1.7 倍推理加速。",
+      "source": "https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF"
+    }
+  ],
   "weaknesses": [],
-  "usage": [],
+  "usage": [
+    {
+      "text": "推荐采样参数（思考模式）：temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=0.0, repetition_penalty=1.0。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "推荐采样参数（非思考模式）：temperature=0.7, top_p=0.80, top_k=20, min_p=0.0, presence_penalty=1.5, repetition_penalty=1.0，配置 enable_thinking=False。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "保留思考链（Preserved Thinking）：默认开启跨轮历史思考保留以保持多轮 Agent 决策连贯；若要节省上下文仅保留当轮思考，可传 chat_template_kwargs={'preserve_thinking': False}。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "输出 Token 上限规划：在支持思考与回复分离限额的框架下，建议 reasoning_content 最大设置为 262,144，最终回复设置为 131,072。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"
+    },
+    {
+      "text": "本地量化部署：推荐使用 unsloth/Qwen3.8-Flash-Next-GGUF（Dynamic v3.1）配合 llama.cpp、Strata 或 Unsloth Desktop 运行。",
+      "source": "https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF"
+    }
+  ],
   "templates": []
 }

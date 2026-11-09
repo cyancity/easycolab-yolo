@@ -2,10 +2,78 @@
   "id": "q27",
   "name": "Qwen3.8-27B",
   "hf": "https://huggingface.co/Qwen/Qwen3.8-27B",
-  "summary": "语言模型，27B Dense，BF16 51.8 GB，上下文 256K，单流预估 30–40 tok/s。",
-  "facts": [],
-  "strengths": [],
-  "weaknesses": [],
-  "usage": [],
+  "summary": "Qwen3.8-27B 是 27B 稠密的原生视觉语言模型，64 层，Gated DeltaNet 与 Gated Attention 混合结构。原生上下文 262,144，可扩展到 1,000,000；默认思考模式，可用 reasoning_effort 调节深度；Apache 2.0。官方基准中 SWE-bench Pro 61.7、OSWorld-Verified 84.3。",
+  "facts": [
+    {
+      "text": "全模型参数量为 27B 稠密模型，类型为带视觉编码器的因果语言模型（Causal LM with Vision Encoder）。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "骨干网络共 64 层，隐藏层维度 5120，结构为 16 × (3 × (Gated DeltaNet → FFN) → 1 × (Gated Attention → FFN))。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "Gated DeltaNet 线性注意力头配置为 V 端 48 头、QK 端 16 头，Head Dim 128；Gated Attention 为 Q 端 24 头、KV 端 4 头，Head Dim 256，RoPE 维度 64。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "原生支持 262,144（256K）Token 上下文长度，并可通过 YaRN 等 RoPE 扩展技术外推至 1,000,000（1M）Token。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "带 MTP（Multi-Token Prediction）模块，以多步方式训练。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "采用宽松的 Apache 2.0 开源许可证。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    }
+  ],
+  "strengths": [
+    {
+      "text": "编程基准：Terminal Bench 2.1 为 73.0、SWE-bench Pro 为 61.7（Qwen3.6-27B 为 53.5）、DeepSWE 1.1 为 42.2（Qwen3.6-27B 为 13.3）、QwenSWEBench 为 79.0。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "出色的职场复杂协作与长程任务规划能力：CoWorkBench 达到 70.7，JobBench 达到 33.4，Agents' Last Exam 综合得分 42.9。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "多模态基准：OSWorld-Verified 84.3、AndroidWorld 81.9；MathVision 90.0（Without CI）/ 94.6（With CI）；BabyVision 65.7（Without CI）/ 85.6（With CI）。页面未说明 CI 的含义。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "灵活的思考链控制：默认开启思考模式（Thinking Mode），支持通过 reasoning_effort 调节思考深度，并支持 preserve_thinking 保留历史多轮推理痕迹以保障决策连贯。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    }
+  ],
+  "weaknesses": [
+    {
+      "text": "多轮复杂 Agent 任务中下调 reasoning_effort 反而可能导致思考不足引发报错重试，最终显著增加整体完成时间和 Token 消耗。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "官方建议在 1M 上下文内为 agent 任务预留充足输出长度：推理内容最大 262,144 token，最终回复最大 131,072 token（仅适用于支持分别限额的框架）。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    }
+  ],
+  "usage": [
+    {
+      "text": "推荐采样参数（思考模式）：temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=0.0, repetition_penalty=1.0。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "推荐采样参数（非思考/指令模式）：temperature=0.7, top_p=0.80, top_k=20, min_p=0.0, presence_penalty=1.5, repetition_penalty=1.0，配置 enable_thinking=False。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "长视频多模态推理优化：将 video_preprocessor_config.json 中的 longest_edge 调整为 469762048（对应 224k 视频 token），以支持小时级长视频的高帧率采样。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "text": "SGLang、vLLM、TokenSpeed 均有官方 Qwen3.8-27B 的 Cookbook/Recipe；官方建议生产与高吞吐场景使用这类专用推理引擎，并用最新框架版本。",
+      "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    }
+  ],
   "templates": []
 }

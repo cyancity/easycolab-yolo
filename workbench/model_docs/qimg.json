@@ -2,10 +2,189 @@
   "id": "qimg",
   "name": "Qwen-Image-2.1",
   "hf": "https://huggingface.co/Qwen/Qwen-Image-2.1",
-  "summary": "图像模型，BF16 30.9 GB，约 4 秒一张。",
-  "facts": [],
-  "strengths": [],
-  "weaknesses": [],
-  "usage": [],
-  "templates": []
+  "summary": "通义千问（Qwen）团队开源的统一文生图与图像编辑模型：视觉生成部分 7B（32 层单流 DiT），文本编码器为 Qwen3-VL 8B。原生 2K 分辨率，支持原生透明（RGBA）出图和最多 10 张参考图的编辑；许可证为 Qwen Research License。",
+  "facts": [
+    {
+      "text": "视觉生成核心采用单流扩散 Transformer（Single-Stream DiT）架构，包含 32 层，参数量为 7B。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "文本与参考条件编码器采用 8B 参数量的 Qwen3-VL 视觉语言模型，将文本提示与参考图像统合编码。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "VAE 为 64 通道 RGBA 自动编码器，具备 16 倍空间下采样率，原生支持透明通道图像生成与编辑。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "原生支持 2K 分辨率，README 默认参数宽高为 2048×2048（1:1）。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "支持最多 10 张参考图像输入，支持多角色群像合成、服装配饰组合及圈选局部编辑。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "开源代码采用 Qwen Research License Agreement 许可证。",
+      "source": "https://huggingface.co/Qwen/Qwen-Image-2.1"
+    }
+  ],
+  "strengths": [
+    {
+      "text": "原生透明度（RGBA）生成：无需后处理抠图，可直接提示模型输出带 Alpha 透明通道的贴纸、设计图及主体提取结果。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "单模型统一文生图与图像编辑：最多 10 张参考图，可保持人物与产品身份，支持圈选、涂抹标注或独立蒙版指定局部编辑；示例含线稿转写实照片、六张人像合影、五件单品组成整套穿搭。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "前缀 KV 缓存复用（Prefix KV Cache）：多步去噪中仅首步对文本与参考图像编码一次并跨步复用，大幅降低多图编辑计算延迟。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "官方称排版（typography）、人像光影与细节纹理有改进，并提供文字渲染示例；Quick Start 里的化学笔记海报提示词含大量排版文字。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "生态首发支持完备：Day-0 支持 Diffusers、ComfyUI、vLLM-Omni、SGLang、LightX2V、OpenVINO 等主流推理与部署框架。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    }
+  ],
+  "weaknesses": [
+    {
+      "text": "标准检查点默认 40 步（num_inference_steps=40）；官方另提供只需 8 步的 Qwen-Image-2.1-Turbo 检查点，说明标准版步数更多。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "官方没有给出具体显存需求；显存有限的 GPU 需调用 pipe.enable_model_cpu_offload()（README Memory Optimization）。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "官方建议用配套的提示词改写模型（Qwen-Image-2.1-PE-T2I / PE-I2I，微调自 Qwen3.5-VL 9B）把短提示词扩写成详细描述，以获得更好效果。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    }
+  ],
+  "usage": [
+    {
+      "text": "标准文生图推荐步数 40 步；若追求快速出图可使用 Qwen-Image-2.1-Turbo 检查点（固定 8 步采样调度）。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "原生推荐宽高比：1:1 (2048×2048)、4:3 (2400×1792)、3:4 (1792×2400)、3:2 (2528×1696)、2:3 (1696×2528)、16:9 (2752×1536)、9:16 (1536×2752)。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "生成透明图时需使用固定规范句式：'This is an RGBA image with transparency. <描述主体>. The image has alpha channel and the background is transparent.'",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    {
+      "text": "显存受限时在 Diffusers 里调用 pipe.enable_model_cpu_offload()；vLLM-Omni 支持 FP8 量化，SGLang 支持 component offload。",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    }
+  ],
+  "templates": [
+    {
+      "title": "化学方程式手绘笔记信息图海报",
+      "scene": "教育科学海报、手绘课堂板报及密集图文排版",
+      "prompt": "A vertically oriented educational chemistry study poster fills the frame, designed like a hand-drawn classroom notes page with a clean white background, thick dark navy-blue outer border, and thin inner navy rectangular border lines. The overall aesthetic is colorful, high-contrast, and hand-lettered in a signature Topper style using marker and watercolor effects. At the top left, a small header in black handwriting reads \"Topper’s Notes\", accented by short decorative navy strokes radiating from it. Centered across the top is the main lesson heading in large stylized black-and-yellow bold lettering: \"Science – Chapter 1:\" followed below by the much larger title \"Chemical Reactions and Equations\". The title has energetic yellow highlighter strokes underneath and small sparkle doodles nearby. At the top right, inside a small outlined page-number box, the label reads \"Page X\". Below the header, a wide rounded rectangle framed in dark navy contains a pink brush-stroke highlight banner with the subheading \"IMPORTANT CHEMICAL EQUATION:\" in black. Inside the same equation panel, the reaction is written very large as \"Fe + CuSO₄ → FeSO₄ + Cu\". The symbol \"Fe\" is highlighted in bright orange with an underline, \"CuSO₄\" is vivid blue and underlined, \"FeSO₄\" is bright green and underlined, and \"Cu\" is metallic bronze and underlined. Beneath the left side of the equation is a lavender rounded label connected by a leader line to the iron component; it says \"Reactants\" and below it \"(before the reaction)\", with \"Reactants\" colored purple and underlined. Beneath the right side is a matching pale-green rounded label connected by a leader line to the products; it says \"Products\" and below it \"(after the reaction)\", with \"Products\" colored green and underlined. Along the lower part of this equation box are stylized ball-and-stick molecule models and atomic orbital drawings: a silver-gray sphere labeled \"Fe\" sits left of center, another cluster shows gray, red, and white spheres representing sulfate groups around blue and green atoms, and a copper-colored sphere appears near the right. Small atom-and-orbit icons sit along the bottom edge of the panel in blue, green, and brown outline styles. The middle portion is enclosed by a large dashed green rounded rectangle titled \"REACTIVITY CONCEPT\" in green uppercase letters with decorative rays. On the left side of this section, a stepped vertical reactivity-series ladder is drawn with alternating colored horizontal blocks. From top to bottom it lists \"K\", \"Na\", \"Ca\", \"Mg\", \"Al\", \"Zn\", \"Fe\" with a green oval callout reading \"(More reactive)\", then continues downward with \"Cu\", \"Ag\", \"Hg\", \"Pt\", \"Au\" with an orange oval callout reading \"(Less reactive)\". Each step is marked by a dark upward-pointing triangular arrow, showing decreasing reactivity downward. In the central-right area, full body text as follows: \"Iron (Fe) is higher in the reactivity series than Copper (Cu). This makes Iron more reactive.\" Below this definition is a visual arrow sequence of overlapping circles: orange \"Fe\" overlaps blue \"Cu\", followed by a red arrow pointing toward the phrase \"→ More displacement ↓ less reactivity\". Under it, a prominent statement in dark handwriting reads \"More reactive element displaces less reactive element\", emphasized with a bright pink marker underline. On the right, a shield-like badge with a navy outline and light interior contains the bold contrasting font label \"DISPLACEMENT REACTION\". Below the badge, full body text as follows: \"A more reactive element displaces a less reactive element from its compound.\" The badge includes an internal miniature illustration of circular electron shells and colored particles, reinforcing the chemistry theme. Directly below the reactivity concept box, a smaller rounded rectangular table titled \"PROPERTY COMPARISON\" compares Iron and Copper. The table has three columns: \"IRON (Fe)\", \"COPPER (Cu)\", and a central property column. Row one reads \"Reactivity series position\" with Iron shown as \"Higher (more reactive)\" and Copper shown as \"Lower (less reactive)\". Row two reads \"Displaces hydrogen from acids\" with Iron marked \"Yes\" and Copper marked \"No\". Row three reads \"Displaced by other metals\" with Iron shown as \"Displaced by Zn, Mg, Al, etc.\" and Copper shown as \"Displaced by Fe, Zn, Mg, etc.\". Row four reads \"Oxidation tendency\" with Iron shown as \"Gets oxidized easily\" and Copper shown as \"Does not get oxidized easily\". Row five reads \"Useful property\" with Iron described as \"Used where strength & corrosion resistance needed\" and Copper described as \"Used where conductivity & corrosion resistance needed\". The table uses thin navy grid lines, orange tinting for the iron column, pale blue tinting for the copper column, black condensed handwriting, and green checkmarks next to positive traits and red crosses next to limitations. The lower half introduces a large illustrated experiment section with a cream highlight behind the title \"BEFORE/AFTER IRON NAIL EXPERIMENT\" in bold dark navy uppercase letters. The section is split visually into a left \"Before\" state and a right \"After\" state. On the left, a beaker filled with bright blue solution contains a shiny silver iron nail standing diagonally. The beaker label reads \"CuSO₄(aq)\" in blue, and the bottom label near the nail reads \"Fe(s)\". A rounded annotation box beside the beaker says \"Initial State: Blue Solution & Silver Nail\". Two glass test tubes stand to the right of this beaker: the upper test tube is filled with blue solution and labeled \"CuSO₄(aq)\", while the lower one contains a pale green liquid. Red and blue directional arrows connect these visual elements to explanations: one red arrow points toward the nail with the text \"Copper gets deposited\", and one blue arrow points toward the liquid with the text \"Solution turns pale green\". On the right side of the experiment section, another beaker shows the after state with the iron nail now coated in brown copper deposits. Its solution is faded to a pale greenish-blue, and the beaker label reads \"FeSO₄(aq)\" in green. A nearby rounded annotation box says \"Final State: Pale Green Solution & Brown Coated Nail\". To the far right are additional test tubes and ion symbols: a test tube containing blue liquid labeled \"CuSO₄(aq)\" with the note \"Blue colour due to Cu²⁺ ions\", and a lower test tube containing pale green liquid labeled \"FeSO₄(aq)\" with the note \"Pale green due to Fe²⁺ ions\". Beside them are ion diagrams labeled \"Cu²⁺(aq)\" and \"Fe²⁺(aq)\", shown as colored charged particles encircled by simple electron-shell rings; the copper ion uses blue particles and the iron ion uses green particles. Small sparkles, arrows, and dashed guide lines emphasize the transformation from blue copper sulfate solution to pale green iron sulfate solution. Near the bottom, a horizontal summary strip has a blue star icon followed by the heading \"SUMMARY\". Full body text as follows: \"In this reaction, Iron (Fe) displaces Copper (Cu) from Copper Sulphate (CuSO₄) solution to form Iron(II) Sulphate (FeSO₄) solution and Copper (Cu).\" To the lower left, a bordered key-points box titled \"KEY POINTS\" lists three starred bullet statements: \"Iron is above copper in the reactivity series.\", \"Fe displaces Cu from CuSO₄ solution.\", and \"Result: Blue solution turns pale green; copper metal deposits on iron nail.\" At the very bottom, inside the footer border, spaced text reads \"CHEMISTRY • CHANGE IS EVERYWHERE • TOPPER’S NOTES\", flanked by small leaf-like ornaments and thin horizontal divider lines. The entire page uses dark navy borders and headings, bright highlighter strokes, watercolor shading, realistic glassware illustrations, and playful scientific doodles to present a chemistry lesson clearly and attractively.",
+      "params": {
+        "width": 1696,
+        "height": 2528,
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；README Quick Start 文生图示例的完整提示词（尺寸 1696×2528、40 步同样出自该示例）"
+    },
+    {
+      "title": "雨夜街头霓虹发光招牌",
+      "scene": "赛博朋克与都市夜景发光文字与反光渲染",
+      "prompt": "A neon shop sign that reads \"QWEN IMAGE 2.1\", rainy night, reflections on wet pavement",
+      "params": {
+        "width": 2048,
+        "height": 2048,
+        "steps": 40
+      },
+      "source": "https://huggingface.co/Qwen/Qwen-Image-2.1",
+      "source_note": "原文；官方 Hugging Face 文生图快速开始示例"
+    },
+    {
+      "title": "萌版卡通龙透明背景贴纸",
+      "scene": "免抠图表情包、徽章贴纸及应用图标生成",
+      "prompt": "This is an RGBA image with transparency. A cute cartoon dragon sticker. The image has alpha channel and the background is transparent.",
+      "params": {
+        "width": 2048,
+        "height": 2048,
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；官方推荐 RGBA 原生透明图像生成规范格式"
+    },
+    {
+      "title": "手绘线稿草图转写实游艇摄影",
+      "scene": "工业设计线稿渲染、草图变写实摄影",
+      "prompt": "Create a photorealistic photograph of the motor yacht from the input sketch, sailing on open sea, captured in full side profile with the camera at water level. Build the vessel with the structure shown in the input sketch: a long low hull; one tall mast stepped forward with a small cross-tree platform near its top; a wheelhouse superstructure with an open bridge wing just behind the mast; a midships deckhouse carrying a row of four rectangular windows with a lifeboat stowed on its roof; a rectangular funnel behind that deckhouse; an aft deckhouse with a row of three rectangular windows and a second lifeboat above it; thin railings along every deck edge; the hull side pierced by one small square window at the bow, an upper line of five round portholes on the raised forward section, and a lower line of nine round portholes along the main hull. Paint the hull black, the superstructures and the mast white, and the funnel yellow. Set the yacht broadside on a calm deep-blue sea with a low gentle swell and a thin white wake trailing from the bow, the straight horizon crossing behind the funnel top, under a clear sky with soft scattered clouds; sunlight from the front left lights the white superstructures and leaves a bright reflection path on the water beside the hull with a soft contact shadow along the waterline; the entire vessel fits inside the frame with open water in the foreground and sky above.",
+      "params": {
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；README Image Editing (Single Image) 示例，需要输入一张线稿图"
+    },
+    {
+      "title": "森林营火三角色合影",
+      "scene": "多人物多参考图融合与保真群像生成",
+      "prompt": "These three characters are sitting around a campfire in a forest",
+      "params": {
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；README Multiple Reference Images 示例，需要输入 3 张参考图"
+    },
+    {
+      "title": "人像/主体换日落海滩背景",
+      "scene": "电商商品或人物写真背景置换",
+      "prompt": "Change the background to a sunset beach",
+      "params": {
+        "steps": 40
+      },
+      "source": "https://huggingface.co/Qwen/Qwen-Image-2.1",
+      "source_note": "原文；HF 卡 Image Editing 示例，需要输入一张原图"
+    },
+    {
+      "title": "木桌上的陶瓷茶壶静物摄影",
+      "scene": "电商产品展示与静物室内摄影",
+      "prompt": "A ceramic teapot on a wooden table",
+      "params": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；官方 vLLM-Omni 离线与在线推理示例"
+    },
+    {
+      "title": "烛光下阅读的水豚暖调插画",
+      "scene": "治愈系风格化插画与角色刻画",
+      "prompt": "A capybara reading a book by candlelight",
+      "params": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；官方 SGLang 推理文档示例"
+    },
+    {
+      "title": "全景高山风光",
+      "scene": "自然风景全景描述（README 的宽高比示例，取 1:1 即 2048×2048）",
+      "prompt": "A panoramic mountain landscape",
+      "params": {
+        "width": 2048,
+        "height": 2048,
+        "steps": 40
+      },
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1",
+      "source_note": "原文；README Supported Aspect Ratios 示例，该示例实际取 1:1 尺寸；16:9 对应 2752×1536，可自行改用"
+    }
+  ]
 }

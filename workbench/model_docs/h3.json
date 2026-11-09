@@ -2,12 +2,118 @@
   "id": "h3",
   "name": "MiniMax-H3",
   "hf": "https://huggingface.co/MiniMaxAI/MiniMax-H3",
-  "summary": "文生视频模型，权重 134 GB，需内存卸载，G4 上约 6 分钟生成 5 秒。",
-  "facts": [],
-  "strengths": [],
-  "weaknesses": [],
-  "usage": [],
+  "summary": "MiniMax 开源的 33B 参数全模态音视频生成模型，可由文本、图片、视频、音频参考生成带原生 32 kHz 立体声的视频（24 FPS，单次 4–15 秒，默认短边 768）。开放权重分两个检查点：FL2VA（文生与首尾帧）和 Ref2VA（全参考）；2K 重生成与 Context-IR 预处理未开源。适合需要对白、环境音与配乐同时生成的短片。",
+  "facts": [
+    {
+      "text": "核心模型 H3-Omni-Transformer 是 33B 参数的 dense 单流 Transformer，其中约 13B 参数位于 AdaLN 相关分支；这部分输出可预先计算并缓存，仅推理部署时无需加载。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "文本编码器（Text Encoder）采用 Qwen3-VL-32B 全量预训练权重，提取其第 50 层隐状态送入 Transformer。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "视觉自编码器为因果视频自编码器（f16t4d24，空间 16x、时间 4x 压缩，24 个潜通道），进入 Transformer 前经 1x2x2 patchify，总空间下采样率为 32x。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "音频自编码器对左右声道使用同一套编码器和解码器，两个声道各自独立处理后再合并，支持 32 kHz 立体声输入输出；每个声道压缩为 40 Hz 的时间潜标记。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "开放权重为两个任务检查点：H3-Base-FL2VA（t2va 文生音视频、fl2va 首尾帧生音视频）和 H3-Base-Ref2VA（ref2va 全参考生音视频），均为 BF16、CFG 蒸馏。HF 仓库文件列表中每个任务目录（FL2VA/、Ref2VA/）约 144 GB（134 GiB）。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/tree/main"
+    },
+    {
+      "text": "ComfyUI 指南：输出为 24 fps，length 是帧数，默认 124（约 5 秒），并会被对齐到 17k+5 的形式。",
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide.md"
+    },
+    {
+      "text": "ComfyUI 指南：16:9 原生分辨率为 1344×768，宽高都需是 32 的倍数。",
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide.md"
+    },
+    {
+      "text": "许可证为 MiniMax H3 Community License Agreement（2026-08-02）：免版税、非独占授权；商业产品或服务年收入超过 2000 万美元须另行取得 MiniMax 书面授权；商业产品界面须显著标注 “MiniMax H3”；授权范围不含欧盟、英国、韩国、美国（需向 MiniMax 申请）；不得用模型或其输出改进其他 AI 模型。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE"
+    }
+  ],
+  "strengths": [
+    {
+      "text": "H3-Omni-Transformer 联合预测视频与音频潜变量，再分别解码为视频和 32 kHz 立体声，音视频在同一模型内一并生成。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "对白稳定支持 11 种语言：阿拉伯语、中文、英语、法语、德语、意大利语、日语、韩语、葡萄牙语、俄语、西班牙语，其他语言有不同程度的支持。提示词中对白写在 <d>[Language] ...</d> 标签内。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "Ref2VA 全参考模式支持多模态参考：图片最多 9 张，视频最多 3 段，音频最多 3 段，视频与音频每段 2–15 秒、各自总长不超过 15 秒，所有类型文件合计最多 12 个。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "官方提示词指南支持按时间点切换镜头（如 [Shot 2] At 00:03.500, the camera cuts to...）、用 Push In、Tracking Shot、Arc Shot 等运镜词描述镜头运动，画面内文字用英文双引号原样写入。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md"
+    }
+  ],
+  "weaknesses": [
+    {
+      "text": "H3-Context-IR（提示词与多模态上下文预处理，托管服务）和 H3-Regenerate-2K（用 H3 对 768p 结果做上下文重生成）均未开源；本地部署的 H3-Base 只产出 768p，2K 需调用 MiniMax API。README 强烈建议使用 Context-IR，或按 Prompting Guidance 自建提示词处理流程。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3"
+    },
+    {
+      "text": "官方发布的部署路径需要多卡服务，或 128GB 统一内存的机器（如 DGX Spark）；bf16 全量约 124GB（文本编码器 62.1GB、33B transformer 61.7GB）。第三方 h3-consumer-bench 在单张 RTX 4090（24GB 显存 + 62GB 内存）上用 int8 加分段卸载跑通，124 帧、832×480、24 fps 的单个带音频片段约 950 秒。",
+      "source": "https://github.com/sztlink/h3-consumer-bench"
+    },
+    {
+      "text": "ComfyUI 指南：模型以 cfg 1 运行，没有负向分支；填入禁用词（ban list）反而会引入不想要的概念，应直接描述希望出现的内容。",
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide.md"
+    },
+    {
+      "text": "ComfyUI 指南：多说话人并带音频参考时可能出现说话人分配错误；台词应绑定到可见事件而不是时间码，必要时在外部为每个说话人单独生成音频再作为参考输入。",
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide.md"
+    },
+    {
+      "text": "单次生成上限为 15 秒。超过 15 秒的视频，官方 music-video-subtitle-generator skill 的做法是拆成多个分镜，用上一段末帧作为下一段首帧接续，再拼接合成。",
+      "source": "https://github.com/MiniMax-AI/MiniMax-H3/blob/main/skills/music-video-subtitle-generator/SKILL.cn.md"
+    }
+  ],
+  "usage": [
+    {
+      "text": "提示词必须采用标准三段式结构：包含 integrated_multimodal_description（按 [Shot N] 分镜轴描述画面、运镜与对白）、overall_soundscape（环境与动作音效）、non_diegetic_music（画外配乐）。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md"
+    },
+    {
+      "text": "首帧与首尾帧必须在首行显式写入对齐指令：首帧使用 'For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.'；首尾帧使用 Picture 1 aligns with 0.00s; Picture 2 aligns with S.SSs，空一行后再写三段式正文。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md"
+    },
+    {
+      "text": "ComfyUI 指南给出的基础设置：16:9 用 1344×768（宽高取 32 的倍数），length 为 24 fps 下的帧数、默认 124（约 5 秒）并对齐到 17k+5，cfg 为 1，不设置 negative prompt。",
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3-prompt-guide.md"
+    },
+    {
+      "text": "说话人与台词格式：对白必须置于 <d>[Language] Text</d> 标签中，说话人使用稳定 ID 编号（如 (S1)）；旁白必须显式标注 says in an off-screen voiceover while lips remain completely closed。",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md"
+    },
+    {
+      "text": "第三方 h3-consumer-bench 在 24GB 显卡上的做法（diffusers）：阶段 A 只加载 int8 文本编码器，把所有提示词编码后存盘；阶段 B 只加载 int8 transformer 并逐块流式送入 GPU 去噪、解码。另提供 W4A4 量化版本，实测显存峰值约 18.6–19.6GB。",
+      "source": "https://github.com/sztlink/h3-consumer-bench"
+    }
+  ],
   "templates": [
+    {
+      "title": "星舰舰桥舰队跃迁震撼时刻",
+      "scene": "硬核科幻太空片，星舰舰桥女舰长目睹庞大舰队充能并跃入超空间，空间震荡冲击舰桥。",
+      "prompt": "integrated_multimodal_description: [Shot 1] Cinematic, medium wide shot, pushing in slowly. In the cavernous, dimly lit bridge of a starship, sleek metallic consoles with glowing amber displays flank a massive, curved observation window. A female captain, in her late 40s with an athletic build and short silver-streaked black hair, stands in the center midground. She wears a structured, high-collared dark navy military tunic with silver chest insignias. Her back is to the camera, silhouetted against the cool, ambient starlight pouring through the thick glass. She stands perfectly still with her hands clasped tightly behind her back. Outside the window, a massive armada of jagged, dark grey dreadnoughts hovers in tight formation against a deep purple space nebula. The fleet's massive rear thrusters begin to glow with an intense, escalating bright blue light. [Shot 2] At 00:04.500, the camera cuts to a close-up of the captain's face and shakes strongly. The brilliant blue-white light from the fleet's gathering energy reflects vividly in her dark eyes. Suddenly, a blinding white flash floods through the window, completely washing out the background as the fleet jumps to hyperspace. The sheer spatial force violently jolts the bridge, causing the captain from Shot 1 to stagger slightly forward, her shoulders tensing as she visibly braces herself against the physical tremors. As the intense white light fades abruptly, leaving only the dim, empty expanse of the purple nebula reflected on her starkly lit skin, her jaw clenches, and she slowly closes her eyes in the newly emptied space.\n\noverall_soundscape: A low, resonant hum of the ship's ambient life support systems serves as the baseline, soon drowned out by an audible, escalating, high-pitched electronic whine as the fleet outside charges its hyperdrives. A massive, deafening, bass-heavy boom and sharp crackle erupts during the blinding flash, accompanied by the loud metallic creaking, rattling, and deep thuds of the bridge's bulkheads vibrating under immense physical stress. The intense roaring impact then cuts abruptly back to a hollow, echoing room tone, leaving only the faint, steady hum of the isolated bridge.\n\nnon_diegetic_music: Cinematic space-opera orchestral score, slow tempo, featuring a solitary, mournful French horn melody over deep, sustained string dissonances that build rapidly in volume and intensity, swelling to a massive orchestral peak before snapping immediately into silence right after the jump.",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/scripts/readme/reproducible-768p-t2va-request.sh",
+      "source_note": "原文：官方 README 的 T2VA 复现脚本（reproducible-768p-t2va-request.sh）中的 prompt，逐字一致。无需参考图。官方请求参数为 short_edge 768、16:9、10 秒。音效与配乐已包含在 prompt 的 overall_soundscape 和 non_diegetic_music 字段中。"
+    },
+    {
+      "title": "清晨面包坊开门",
+      "scene": "写实电影感短片：面包师拉开百叶窗、放上新面包并说一句英文台词，第二镜头切到面包切片的蒸汽特写。",
+      "prompt": "integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames a baker opening the shutters of a small street bakery before sunrise. The camera pushes in with small amplitude at slow speed as the middle-aged baker with a calm, slightly raspy voice (S1) places a fresh loaf on the wooden counter and says: <d>[English] First batch of the morning.</d> [Shot 2] At 00:05.000, the camera cuts to a close-up of steam rising from the sliced bread while the baker's final words carry over from the previous shot.\n\noverall_soundscape: Wooden shutters scrape open over a quiet street as trays clink softly inside the bakery. The doorbell rings once, followed by light footsteps and the crisp sound of bread being sliced.\n\nnon_diegetic_music: A soft acoustic-guitar pattern at a moderate tempo, joined by sparse upright-bass notes and a gentle fade at the end.",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md",
+      "source_note": "原文：官方 Base 模式提示词指南 Case 1: T2VA 的示例，逐字一致。无需参考图。音效与配乐已包含在 prompt 的 overall_soundscape 和 non_diegetic_music 字段中。"
+    },
     {
       "title": "铁道口少女",
       "scene": "新海诚风格 · 铁道口少女",

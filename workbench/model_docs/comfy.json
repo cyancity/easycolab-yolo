@@ -2,10 +2,149 @@
   "id": "comfy",
   "name": "ComfyUI",
   "hf": "https://github.com/comfyanonymous/ComfyUI",
-  "summary": "节点式工作流，网页操作，预置 Wan2.2、LTX 2.3、Hunyuan 1.5。",
-  "facts": [],
-  "strengths": [],
-  "weaknesses": [],
-  "usage": [],
-  "templates": []
+  "summary": "ComfyUI 是节点图界面的开源 AI 创作引擎，可生成图像、视频、音频和 3D 内容。官方称借助异步权重流式加载，最低 4GB 显存加 8GB 内存即可运行最大的开源模型；支持 NVIDIA、AMD、Intel、Apple Silicon 与 Ascend，可完全离线运行，许可证 GPL-3.0。",
+  "facts": [
+    {
+      "text": "以节点图（node graph）界面构建图像、视频、音频、3D 与文本工作流；核心仓库为 comfyanonymous/ComfyUI，桌面端与前端仓库在 Comfy-Org 名下；许可证为 GPL-3.0（仓库 LICENSE）。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "具备顶尖的显存与内存异步权重流式加载技术（Asynchronous Weight Streaming），支持在 4GB 显存与 8GB 内存设备上运行大模型。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "原生支持主流前沿生成模型家族，涵盖 Flux.1/2、SD/SDXL/SD3.5、Qwen Image、Z-Image、Wan 2.1/2.2、HunyuanVideo、MiniMax H3 等。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "示例仓库中的所有图片都带元数据，用 Load 按钮或拖入窗口即可还原所用的完整工作流；主 README 也称可从受支持的生成媒体中恢复完整工作流与种子。",
+      "source": "https://comfyanonymous.github.io/ComfyUI_examples/"
+    },
+    {
+      "text": "提供本地 API，可把工作流集成进应用和生产流水线（README：local API、API endpoints）。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    }
+  ],
+  "strengths": [
+    {
+      "text": "高效本地执行：异步队列、局部图重执行（partial graph re-execution）、智能 VRAM/RAM 管理、模型 offloading 与量化模型支持。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "模块化：可分别加载 diffusion model、VAE、text encoder、LoRA、ControlNet、adapter 与 upscaler；内置 inpainting、outpainting、参考条件、遮罩合成、模型合并、放大、插帧、分割、深度估计等工具，并支持自定义节点扩展。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "支持 NVIDIA、AMD、Intel、Apple Silicon 与华为 Ascend NPU，覆盖 Windows、Linux、macOS。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "可完全离线运行：核心除非用户请求否则不下载任何内容；--offline 会禁用可选的付费 Comfy API 节点，使全部内置功能保持离线。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    }
+  ],
+  "weaknesses": [
+    {
+      "text": "自定义节点对版本敏感：README 提示稳定版标签之外的提交可能非常不稳定并破坏许多自定义节点；Python 3.14 下部分自定义节点可能出问题。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    }
+  ],
+  "usage": [
+    {
+      "text": "快捷键高效操作：Ctrl+Enter 提交队列生成；Ctrl+Alt+Enter 取消生成；Ctrl+B 旁路跳过节点；Ctrl+M 静音节点；双击左键呼出快速搜节点面板。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "与其他 UI 共享模型：把 extra_model_paths.yaml.example 重命名为 extra_model_paths.yaml 并编辑，配置额外的模型搜索路径。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    },
+    {
+      "text": "官方入口：comfy.org/workflows 提供维护中的现成可运行模板（README 称 maintained, ready-to-run templates），旧示例见 ComfyUI_examples。",
+      "source": "https://github.com/comfyanonymous/ComfyUI"
+    }
+  ],
+  "templates": [
+    {
+      "title": "Z-Image-Turbo 极速文生图工作流",
+      "scene": "ComfyUI 官方 Z-Image-Turbo 文生图模板：z_image_turbo_bf16 + qwen_3_4b 文本编码器 + ae VAE",
+      "prompt": "Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up.",
+      "params": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 8
+      },
+      "source": "https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_z_image_turbo.json",
+      "source_note": "原文；工作流 JSON 内置的默认提示词。KSampler 8 步、cfg 1、res_multistep/simple，潜空间 1024×1024"
+    },
+    {
+      "title": "Qwen-Image-2.1 文生图与原生透明图工作流",
+      "scene": "Qwen-Image-2.1 文生图模板（int8 模型 + Qwen3-VL 8B 编码器）；Note 给出透明图提示词包装，保存 PNG 以保留 alpha",
+      "prompt": "Greyscale fashion editorial portrait of an avant-garde woman tilted upwards in profile, captured with striking high-contrast chiaroscuro lighting. She wears oversized, thick-rimmed circular black sunglasses with matte dark lenses, concealing her upward gaze. Her attire merges high couture with tactical abstraction: a high-necked structural dress tailored from heavyweight fabric featuring a disrupted optical camouflage pattern—interlocking oversized polka dots, pixelated stippling, and organic contour blotches in stark monochrome that mimic military disruptive patterns in a refined runway style. Around her shoulders, asymmetric pleated webbing and tailored cargo straps are integrated seamlessly into the garment’s architecture. In her gloved hand, she clutches a structured matte-leather geometric handbag accented with subtle tactical buckles, utility stitching, and dark brushed-metal hardware. Her skin texture is rendered with hyper-detailed clarity, sculpted by intense, razor-sharp studio key light and deep graphite shadows. The striking background is a vivid mixed-media graphic collage, composed of flat vibrant lime green planes, stark black and white overlapping circles, segmented semi-circles with bold zebra striping, dense micro-halftone dot matrices, and vector topographic contour lines. The clash between monochromatic disruptive camo elements on her clothing and the saturated, retro-futuristic pop-art backdrop creates an intense visual dissonance, emphasizing sharp silhouettes, paper cut-out edges, dynamic compositional balance, and clean graphic novel textures. Absolutely no text, no typography, no letters, no words, no numbers, no logos, no watermark, no captions, pure imagery only.",
+      "params": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 25
+      },
+      "source": "https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_qwen_image_2_1_t2i.json",
+      "source_note": "原文；工作流 JSON 内置的默认提示词。模板自述官方管线约 40-50 步、本模板从 25 步起步；原生 2K 需选 1:1 与 4MP（2048×2048）"
+    },
+    {
+      "title": "Qwen-Image-2.1 多图参考与指令修图工作流",
+      "scene": "Qwen-Image-2.1 多图参考编辑模板：默认载入人像与蓝色牛仔衬衫两张图换装；最多 10 张参考图，提示词里用 <image1>、<image2> 引用",
+      "prompt": "Replace costumes for the character",
+      "params": {
+        "steps": 25
+      },
+      "source": "https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_qwen_image_2_1_image_edit.json",
+      "source_note": "原文；工作流 JSON 内置的默认编辑指令。模板自述官方管线约 40-50 步、本模板从 25 步起步"
+    },
+    {
+      "title": "Flux.2 [Klein] 4B 文生图工作流",
+      "scene": "BFL 蒸馏模型 Flux.2 Klein 4B，官方称亚秒级出图、适合实时生成",
+      "prompt": "An expansive, sun-drenched conservatory perched high within a mist-shrouded redwood canopy during early dawn. In the center, a solitary hedgehog botanist wearing tiny brass spectacles meticulously trims glowing celestial orchids from a weathered wooden stepladder. Warm, dramatic morning sunbeams pierce diagonally through towering arched glass panes, casting sharp volumetric light across polished timber floorboards, scattered botanical parchment charts, and antique brass microscopes. Floating golden pollen and gentle morning haze drift through the air, creating a tranquil, reverent mood. Low-angle distant wide shot captured with a crisp 24mm prime lens, revealing the vast scale of the sunlit greenhouse surrounding the tiny diligent caretaker, with rich ambient warmth and soft atmospheric falloff.",
+      "params": {
+        "steps": 20
+      },
+      "source": "https://comfy.org/workflows/image_flux2_klein_text_to_image-814fd547d86e",
+      "source_note": "原文；comfy.org 工作流页的示例提示词。页面默认 steps 20、CFG 5，未显示默认宽高"
+    },
+    {
+      "title": "Wan 2.1 图生视频工作流",
+      "scene": "Wan 2.1 图生视频：上传首帧图并描述运动与镜头；官方提示 480p 约 832×480 效果最好，16 帧/秒、帧数用 4n+1（81 帧约 5 秒）",
+      "prompt": "The caribou stands on the frozen tundra at winter twilight, slowly lifts its head and turns it toward the camera, its breath streaming out in thick white clouds of vapour. The small bird on its back hops forward, shakes the frost from its feathers and takes off in a short, fluttering loop before landing again. Fine powder snow drifts low across the ground in the wind and the long winter fur ripples along its neck and flanks. The camera slowly circles a quarter turn around the animal while gently pushing in, keeping it centred against the dark mountains. Cold blue light, natural steady motion, photorealistic wildlife footage, shallow depth of field.",
+      "params": {
+        "width": 832,
+        "height": 480,
+        "steps": 20
+      },
+      "source": "https://comfy.org/workflows/image_to_video_wan-18da3456241d",
+      "source_note": "原文；comfy.org 工作流页的示例运动描述（需配一张起始图）。页面默认 steps 20、CFG 6"
+    },
+    {
+      "title": "混元视频（HunyuanVideo 1.5）文生视频工作流",
+      "scene": "HunyuanVideo 1.5 文生视频 720p 工作流，含可选 1080p 上采样与超分、EasyCache 加速（以降低一点画质换速度）",
+      "prompt": "A paper airplane released from the top of a skyscraper, gliding through urban canyons, crossing traffic, flying over streets, spiraling upward between buildings. The camera follows the paper airplane's perspective, shooting cityscape in first-person POV, finally flying toward the sunset, disappearing in golden light. Creative camera movement, free perspective, dreamlike colors.",
+      "params": {
+        "width": 1280,
+        "height": 720,
+        "frames": 121,
+        "steps": 20
+      },
+      "source": "https://comfy.org/workflows/video_hunyuan_video_1.5_720p_t2v-a3e50e79cb89",
+      "source_note": "原文；comfy.org 工作流页 API JSON 内置的示例提示词。页面称默认步数 20，成片建议提到 30-40 步"
+    },
+    {
+      "title": "SDXL Base + Refiner 两阶段精炼工作流",
+      "scene": "SDXL Base 出图、Refiner 在后段（默认第 20 步起）接手加细节；SDXL 约 1 百万像素效果最好",
+      "prompt": "An atmospheric retro-fantasy illustration captured from an elevated bird's-eye perspective with a panoramic 24mm wide-angle lens. At the center, a colossal floating dodecahedron carved from rough, porous volcanic basalt and veined raw malachite hovers majestically. Intricate fractal cracks glow with deep interior smoldering embers, casting soft rim lighting across its weathered, matte stone facets. Flanking canyon ridges and staggered sandstone buttes stretch endlessly toward distant horizon lines, shrouded in low-lying ochre dust and golden atmospheric haze. Gentle late-afternoon sunbeams rake across the arid valley floor, creating long sweeping umber shadows and warm terracotta highlights. The rich, earthy palette balances burnt sienna, dusty sage green, and muted copper with the fiery molten core of the monolith. Deep cinematic shadows and diffused twilight haze emphasize the vast, quiet expanse around the solitary geometric relic.",
+      "params": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 25
+      },
+      "source": "https://comfy.org/workflows/sdxl_refiner_prompt_example-3858678780f1",
+      "source_note": "原文；comfy.org 工作流页的示例提示词与默认反向词。页面默认 steps 25、CFG 8，尺寸 1024×1024 为页面举例",
+      "negative": "text, watermark"
+    }
+  ]
 }

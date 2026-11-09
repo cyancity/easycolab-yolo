@@ -1,11 +1,63 @@
 {
   "id": "q27gguf",
-  "name": "Qwen3.8-27B GGUF",
+  "name": "Qwen3.8-27B-GGUF",
   "hf": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
-  "summary": "语言模型，27B Dense，UD-Q4_K_M 量化 18.7 GB，上下文 256K，单流预估 55–80 tok/s。",
-  "facts": [],
-  "strengths": [],
-  "weaknesses": [],
-  "usage": [],
+  "summary": "Unsloth 发布的 Qwen3.8-27B GGUF，采用 Dynamic v3.0 动态量化，官方称同尺寸 top-1 准确度比其他提供方高 10% 以上，量化包已启用 MTP。官方文档称 4-bit 约需 16-19GB 内存（BF16 为 56GB），RTX 5080、4090 或 24GB 内存的 Mac 可运行；Apache 2.0。",
+  "facts": [
+    {
+      "text": "基座模型为 Qwen/Qwen3.8-27B（27B 稠密多模态因果语言模型），基于 Apache 2.0 协议开源。",
+      "source": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF"
+    },
+    {
+      "text": "Qwen3.8-27B 采用 Unsloth Dynamic v3.0 量化；官方称在同尺寸下 top-1 准确度比其他所有 GGUF 提供方高 10% 以上（Unsloth 自测）。",
+      "source": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF"
+    },
+    {
+      "text": "Unsloth 硬件需求表（RAM + VRAM 或统一内存总量）：4-bit 16-19GB，6-bit 23-26GB，8-bit 31GB，BF16 56GB。",
+      "source": "https://unsloth.ai/docs/models/qwen3.8"
+    },
+    {
+      "text": "Unsloth 的 Qwen3.8 量化已启用 MTP；其 MTP 指南称 GGUF 下 MTP 可让生成快约 1.4 到 2.2 倍，稠密模型受益最多，内存带宽较低的设备（如旧款 Mac）增益较小。该范围是通用说明，不是 Qwen3.8-27B 的专项实测。",
+      "source": "https://unsloth.ai/docs/models/mtp"
+    },
+    {
+      "text": "启用 MTP 投机预测功能需额外预留 1GB~2GB 的显存/系统内存 Headroom 缓冲区。",
+      "source": "https://unsloth.ai/docs/models/qwen3.8"
+    }
+  ],
+  "strengths": [
+    {
+      "text": "官方文档称 Qwen3.8-27B 的 4-bit 量化可在 16-19GB 显存设备上运行，如 RTX 5080、4090，或 24GB 内存的 Mac。",
+      "source": "https://unsloth.ai/docs/models/qwen3.8"
+    },
+    {
+      "text": "Dynamic v3.0 在同等尺寸下保留更多模型质量：使用更高质量的 imatrix 校准数据集并改进层选择，Divergence-300 @32 与 KL Divergence 指标更优；只用训练后量化，不使用 QAT/QAD。",
+      "source": "https://unsloth.ai/docs/basics/dynamic-3.0-ggufs"
+    },
+    {
+      "text": "可在 llama.cpp 和 Unsloth Desktop（macOS、Windows、Linux）中运行；Unsloth 文档另有接入 Claude Code、Codex、web search、MCP 的说明。",
+      "source": "https://unsloth.ai/docs/models/qwen3.8"
+    }
+  ],
+  "weaknesses": [
+    {
+      "text": "低位宽量化局限明显：官方称从 UD-Q2_K_XL 到 UD-IQ2_S，Divergence-300 @32 从约 25% 降到 8-10% 以下，1-bit 量化不应用于 agent 与工具调用。",
+      "source": "https://unsloth.ai/docs/basics/dynamic-3.0-ggufs"
+    },
+    {
+      "text": "MTP 需要手动开启：安装最新版 llama.cpp，并加 --spec-type draft-mtp 与 --spec-draft-n-max（Unsloth 建议起点为 2）；MTP 比标准推理多占约 2GB 内存。",
+      "source": "https://unsloth.ai/docs/models/mtp"
+    }
+  ],
+  "usage": [
+    {
+      "text": "在 Unsloth Desktop 中可一键开关思考模式（Thinking toggle），并支持针对 Agent 场景的开发者角色（Developer Role）与嵌套工具调用。",
+      "source": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF"
+    },
+    {
+      "text": "推荐采样参数（思考模式）：temperature=1.0, top_p=0.95, top_k=20, presence_penalty=0.0；若关闭思考切换为指令模式：temperature=0.7, top_p=0.80, presence_penalty=1.5。",
+      "source": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF"
+    }
+  ],
   "templates": []
 }
