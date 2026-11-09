@@ -102,6 +102,7 @@ def _sync_windows_titlebar_dark_mode(hwnd: int, dark: bool) -> None:
         return
     try:
         import ctypes
+        import ctypes.wintypes  # noqa: F401  # 不导入则 ctypes.wintypes.HWND 抛 AttributeError，暗色标题栏静默失效
 
         DWMWA_USE_IMMERSIVE_DARK_MODE = 20
         val = ctypes.c_int(1 if dark else 0)
