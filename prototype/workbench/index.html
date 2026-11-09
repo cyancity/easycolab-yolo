@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EasyColab 工作台 · 原型</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="app.css" />
+  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <nav class="sidebar" id="nav" aria-label="主导航"></nav>
+    <main class="main">
+      <header class="topbar">
+        <h1 id="title"></h1>
+        <span class="spacer"></span>
+        <button class="btn primary" id="new"><i data-lucide="plus"></i>新建部署</button>
+      </header>
+      <div class="view" id="view"></div>
+    </main>
+  </div>
+  <div id="sheet"></div>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

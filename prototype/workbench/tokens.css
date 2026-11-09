@@ -1,0 +1,320 @@
+/*
+ * 设计 token。变量名和结构所有项目共用；这里的值是「工作台」预设，B 端、后台、工具类直接用，
+ * 其他类型的项目在视觉评审定方向后保留变量名、替换值。
+ * 复制进项目后，颜色、尺寸、阴影、动效的字面量只允许出现在本文件。
+ * 组件只引用语义变量（Tailwind 类 bg-card / text-muted-foreground，或 var(--border)）。
+ *
+ * 变量名与 shadcn/ui 兼容：background foreground card popover primary secondary muted
+ * accent destructive border input ring radius chart-* sidebar-*。另加 brand-* 和状态色。
+ * 注意 shadcn 的 accent 是悬停底色，不是品牌色；品牌色用 brand。
+ *
+ * 深色：给 <html> 加 class="dark" 或 data-theme="dark"。
+ * Tailwind v4：主样式里 @import "tailwindcss"; 之后引入本文件，末尾 @theme inline 生成工具类。
+ *   直接 @import "./tokens.css"; 不要加 layer(theme)：字体、字号、圆角、阴影、缓动在 theme 层里是同名自引用，
+ *   靠本文件不分层的 :root 覆盖（Tailwind 4.3.4 实测：text-body、rounded-md、shadow-md、font-sans 等在深浅色下取值正确）。
+ * 非 Tailwind 项目：@theme 块会被浏览器忽略，直接用 var(--*)。
+ * 换旋钮：从 presets.css 把对应块的值抄回本文件，presets.css 不进项目。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* 品牌（旋钮：presets.css 的 data-brand） */
+  --brand: #2f5bd3;               /* 实心填充：品牌按钮、选中的开关和复选框、进度 */
+  --brand-foreground: #ffffff;
+  --brand-text: #2a55cc;          /* 品牌色文字：链接、品牌图标 */
+  --brand-soft: #eaf0fd;          /* 选中行、选中导航的底 */
+  --brand-soft-foreground: #1f44a6;
+
+  /* 中性（旋钮：data-neutral） */
+  --background: #f7f7f5;          /* 应用画布 */
+  --foreground: #1b1b19;
+  --card: #ffffff;                /* 面板、卡片、表格容器 */
+  --card-foreground: var(--foreground);
+  --popover: #ffffff;
+  --popover-foreground: var(--foreground);
+  --muted: #f0f0ed;               /* 侧栏、表头、次级区域 */
+  --muted-foreground: #62625c;    /* 次要文字，正文可用 */
+  --subtle-foreground: #8b8b84;   /* 占位、禁用、时间戳；不用于需要读的正文 */
+  --accent: #ebebe7;              /* 悬停底色（shadcn 语义） */
+  --accent-foreground: var(--foreground);
+  --secondary: #ebebe7;
+  --secondary-foreground: var(--foreground);
+  --border: #e3e3de;
+  --border-strong: #cfcfc8;
+  --input: var(--border-strong);  /* 输入框边框 */
+
+  /* 主按钮：默认墨色。想要品牌色主按钮，设 data-primary="brand" 或把这两行改成 brand */
+  --primary: #1b1b19;
+  --primary-foreground: #fafaf8;
+  --ring: var(--brand);
+
+  /* 状态色：实心、浅底、浅底上的文字 */
+  --success: #1f8a4c;
+  --success-foreground: #ffffff;
+  --success-soft: #e7f4ec;
+  --success-soft-foreground: #17693a;
+  --warning: #a35f00;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fbf1e1;
+  --warning-soft-foreground: #7f4a00;
+  --danger: #c8312b;
+  --danger-foreground: #ffffff;
+  --danger-soft: #fbeaea;
+  --danger-soft-foreground: #9e2420;
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
+
+  /* 图表分类色：第一序列跟品牌 */
+  --chart-1: var(--brand);
+  --chart-2: #14937f;
+  --chart-3: #d08a14;
+  --chart-4: #8a5cc7;
+  --chart-5: #c9485b;
+
+  /* shadcn Sidebar 组件 */
+  --sidebar: var(--muted);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  /* 字体：系统字体优先，中文回落到各平台系统中文字体，不下载网络字体 */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto,
+    "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC",
+    sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* 字阶：字号 / 行高。中文正文行高不低于 1.5 */
+  --text-caption: 0.75rem;     --text-caption--line-height: 1rem;
+  --text-label: 0.8125rem;     --text-label--line-height: 1.125rem;
+  --text-body-sm: 0.8125rem;   --text-body-sm--line-height: 1.25rem;
+  --text-body: 0.875rem;       --text-body--line-height: 1.375rem;
+  --text-body-lg: 1rem;        --text-body-lg--line-height: 1.625rem;
+  --text-title: 1rem;          --text-title--line-height: 1.5rem;
+  --text-title-lg: 1.25rem;    --text-title-lg--line-height: 1.75rem;
+  --text-headline: 1.5rem;     --text-headline--line-height: 2rem;
+  --text-display: 2rem;        --text-display--line-height: 2.5rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* 间距：4px 网格，与 Tailwind 默认 spacing 一致。Tailwind 项目直接用 p-4 gap-2 等 */
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* 尺寸（旋钮：data-density） */
+  --control-h-sm: 1.75rem;
+  --control-h: 2rem;
+  --control-h-lg: 2.5rem;
+  --row-h: 2.5rem;
+  --icon-sm: 0.875rem;
+  --icon: 1rem;
+  --icon-lg: 1.25rem;
+  --sidebar-w: 15rem;
+  --topbar-h: 3rem;
+  --content-max: 75rem;
+
+  /* 圆角（旋钮：data-radius）。按钮、输入用 md，卡片、弹窗用 xl */
+  --radius: 0.5rem;
+  --radius-sm: max(calc(var(--radius) - 4px), 0px);
+  --radius-md: max(calc(var(--radius) - 2px), 0px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-full: 9999px;
+
+  /* 层次：先靠留白和底色，再靠边框，阴影只给浮层 */
+  --shadow-xs: 0 1px 2px rgb(20 20 18 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(20 20 18 / 0.07), 0 1px 2px rgb(20 20 18 / 0.04);
+  --shadow-md: 0 8px 20px -6px rgb(20 20 18 / 0.12), 0 2px 6px -2px rgb(20 20 18 / 0.06);
+  --shadow-lg: 0 24px 56px -12px rgb(20 20 18 / 0.24), 0 6px 16px -6px rgb(20 20 18 / 0.08);
+  --overlay: rgb(20 20 18 / 0.32);
+
+  --z-sticky: 10;
+  --z-dropdown: 50;
+  --z-overlay: 80;
+  --z-modal: 90;
+  --z-toast: 100;
+
+  /* 动效：只动 transform 和 opacity。进入用 out，退出更快 */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+}
+
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --brand: #3d68e0;
+  --brand-foreground: #ffffff;
+  --brand-text: #8aa4f5;
+  --brand-soft: #1b2443;
+  --brand-soft-foreground: #b3c5fb;
+
+  --background: #111110;
+  --foreground: #ececea;
+  --card: #181817;
+  --popover: #1d1d1b;
+  --muted: #151514;
+  --muted-foreground: #a3a39c;
+  --subtle-foreground: #75756f;
+  --accent: #252523;
+  --secondary: #252523;
+  --border: #2a2a27;
+  --border-strong: #3a3a36;
+
+  --primary: #ececea;
+  --primary-foreground: #111110;
+
+  --success: #2e9e5e;
+  --success-soft: #13291d;
+  --success-soft-foreground: #7fd6a3;
+  --warning: #b86e0a;
+  --warning-soft: #2e2210;
+  --warning-soft-foreground: #f2bd6b;
+  --danger: #d9433c;
+  --danger-soft: #34171a;
+  --danger-soft-foreground: #f59a94;
+
+  --chart-2: #3cc2a9;
+  --chart-3: #e8ad4a;
+  --chart-4: #a98ae0;
+  --chart-5: #ea7a8a;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 8px 20px -6px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-lg: 0 24px 56px -12px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --overlay: rgb(0 0 0 / 0.56);
+}
+
+[data-primary="brand"] {
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+}
+
+/* 触屏设备自动放大控件，满足 44px 触控目标 */
+@media (pointer: coarse) {
+  :root {
+    --control-h-sm: 2rem;
+    --control-h: 2.5rem;
+    --control-h-lg: 2.75rem;
+    --row-h: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-foreground: var(--brand-soft-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-foreground: var(--danger-soft-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --text-caption: var(--text-caption);
+  --text-caption--line-height: var(--text-caption--line-height);
+  --text-label: var(--text-label);
+  --text-label--line-height: var(--text-label--line-height);
+  --text-body-sm: var(--text-body-sm);
+  --text-body-sm--line-height: var(--text-body-sm--line-height);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--text-body--line-height);
+  --text-body-lg: var(--text-body-lg);
+  --text-body-lg--line-height: var(--text-body-lg--line-height);
+  --text-title: var(--text-title);
+  --text-title--line-height: var(--text-title--line-height);
+  --text-title-lg: var(--text-title-lg);
+  --text-title-lg--line-height: var(--text-title-lg--line-height);
+  --text-headline: var(--text-headline);
+  --text-headline--line-height: var(--text-headline--line-height);
+  --text-display: var(--text-display);
+  --text-display--line-height: var(--text-display--line-height);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
+  --ease-in: var(--ease-in);
+}
