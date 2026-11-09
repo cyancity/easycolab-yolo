@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Serve Qwen3.8-Flash-Next on one Colab GPU through llama.cpp `llama-server`.
+"""Serve Qwen GGUF models on one Colab GPU through llama.cpp `llama-server` (Flash-Next + a small smoke model).
 
-Goal: ctx >= 300K (target 512K), single-stream decode >= 100 tok/s (target 150),
+Model data (repo, files, MTP, ctx, extra args, architecture) is in llama_specs.SPECS, keyed by app model id; every
+function takes `spec=<id>`, default Flash-Next.  The small model (qwen35_4b_smoke, fits a T4) uses the same
+build / download / launch / ready / forward path, so a T4 run validates what Flash-Next needs on G4 / H100 / A100.
+
+Flash-Next goal: ctx >= 300K (target 512K), single-stream decode >= 100 tok/s (target 150),
 VRAM use >= 75%.  Targets: Colab G4 (RTX PRO 6000 Blackwell 96GB), H100 80GB, A100 80GB.
 Only the standard library and huggingface_hub are used.  Units: GiB = 2**30 bytes;
 pass nvidia-smi memory.total / 1024 as the GPU size.  "K" in ctx_k = 1024 tokens.
@@ -9,23 +13,15 @@ pass nvidia-smi memory.total / 1024 as the GPU size.  "K" in ctx_k = 1024 tokens
 VERIFIED (read on 2026-11-10)
   * HF repo `unsloth/Qwen3.8-Flash-Next-GGUF`, file tree via
     https://huggingface.co/api/models/unsloth/Qwen3.8-Flash-Next-GGUF/tree/main?recursive=true
-    - shards `<Q>/Qwen3.8-Flash-Next-<Q>-0000i-of-0000n.gguf`; sizes in QUANTS below are from this tree.
-    - the engram table is one whole shard (IQ4_NL 28.8 GB for the UD-IQ3_XXS..UD-Q4_K_XL quants,
-      Q8_0 54.4 GB for UD-Q5_K_XL/UD-Q6_K_XL/Q8_0); other tables: BF16/Q8_0/Q5_1/IQ4_NL
-      in `engram/` plus `engram/set_split.py` (not used here).
-    - MTP heads in `MTP/`: `mtp-Qwen3.8-Flash-Next-Q8_0.gguf` (4,137,429,120 B, full head) and
-      `MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf` (2,786,568,256 B, reuses main embeddings).
+    - shard layout, sizes, engram shard and MTP heads: see llama_specs.py (other engram tables in `engram/`
+      plus `engram/set_split.py` are not used here).
   * llama.cpp: https://github.com/danielhanchen/llama.cpp branch `qwen4exp/mtp` exists
     (head 6fcaa16f4b36 on 2026-09-21, api.github.com/repos/danielhanchen/llama.cpp/branches/qwen4exp/mtp).
     Upstream https://github.com/ggml-org/llama.cpp merged "Qwen4Exp: add MTP" (PR #29761, 2026-10-01).
     Upstream does NOT load the `shared` MTP head (missing token_embd.weight), so the full head is the default.
-  * Flags (https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md): -fa [on|off|auto],
-    -ctk/-ctv (q8_0 allowed), --rope-scaling yarn, --rope-scale N, --yarn-orig-ctx N, -ot/--override-tensor
-    PATTERN=BUFTYPE, --jinja, --metrics, -a/--alias, -np/--parallel, -md/--model-draft,
-    --spec-type draft-mtp, --spec-draft-n-max.
-  * Architecture (https://huggingface.co/Qwen/Qwen3.8-Flash-Next): 48 layers = 12 x (3 Gated DeltaNet + 1 QSA
-    full-attention); QSA has 2 KV heads, head dim 256, indexer dim 128; native ctx 262,144;
-    YaRN factor 4.0 example, factor 2.0 suggested for 524,288 tokens.
+  * Flags: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md (-fa, -ctk/-ctv, --rope-scaling
+    yarn, -ot, --jinja, --metrics, -a, -np, -md, --spec-type draft-mtp, --spec-draft-n-max).
+  * Architecture and YaRN factor (2.0 for 524,288 tokens): see llama_specs.py.
   * Unsloth guide https://unsloth.ai/docs/models/qwen3.8-next : ~100 tok/s baseline, ~170 with MTP on 1x RTX
     PRO 6000; sampling temp 1.0 / top-p 0.95 / top-k 20 / min-p 0.
     https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/raw/main/MTP/README.md recommends n-max 2
@@ -39,11 +35,12 @@ UNVERIFIED (assumed, check on first real run)
      flags override the GGUF rope settings for arch qwen4exp.
   3. Whether the danielhanchen branch (Sep 21) is newer than what the Unsloth GGUFs need, vs upstream
      master (`--llama-source upstream`).  Full MTP head working with the unsloth main GGUFs is assumed.
-  4. KV bytes per token: the indexer key cache (128 dim per QSA layer), MTP draft KV and compute buffers
-     are estimates (see constants).  Real VRAM must be read from nvidia-smi.
+  4. KV bytes per token, MTP draft KV and compute buffers are estimates.  Read real VRAM from nvidia-smi.
   5. nvcc / cmake being present on the Colab G4 image; CMAKE_CUDA_ARCHITECTURES=120 for Blackwell
      (CUDA >= 12.8 needed).  `-DLLAMA_CURL=OFF` is only a hint to older trees.
   6. Decode speed (>=100 / 150 tok/s) is not modelled; only measured numbers count.
+  7. The fork supports Qwen3.5 MTP (smoke model, see llama_specs.py).
+  8. Build recipe (-DGGML_NATIVE=OFF + AVX2, cuda libs linked dynamically) has not been built on any GPU yet.
 """
 from __future__ import annotations
 
@@ -52,7 +49,6 @@ import glob
 import importlib.util
 import io
 import json
-import math
 import os
 import re
 import shutil
@@ -65,54 +61,30 @@ import time
 import urllib.error
 import urllib.request
 
+import llama_specs
+from llama_specs import SPECS
+
 LOG = "FN_LOG:"
 GIB = 2 ** 30
-HF_REPO = "unsloth/Qwen3.8-Flash-Next-GGUF"
-MODEL_DIRNAME = "unsloth/Qwen3.8-Flash-Next-GGUF"  # = <models root>/<repo id>, the layout app.py uses for MODEL_CATALOG
 SOURCES = {
     "fork": ("https://github.com/danielhanchen/llama.cpp", "qwen4exp/mtp"),
     "upstream": ("https://github.com/ggml-org/llama.cpp", "master"),
 }
-ENGRAM_TENSOR_RE = r"per_layer_token_embd\.weight=CPU"  # UNVERIFIED #1
-NATIVE_CTX = 262144
-ALIAS = "qwen3.8-flash-next"
+DEFAULT_SPEC = llama_specs.FLASH_NEXT_ID
 
-# (shard sizes in bytes in file order, 1-based index of the engram shard). Source: HF tree (see docstring).
-_H = 10946618
-QUANTS = {
-    "UD-IQ1_S": ((_H, 37568095648, 28800138432), 3),
-    "UD-IQ1_M": ((_H, 39196009888, 28800138432), 3),
-    "UD-IQ2_XS": ((_H, 47021008288, 28800138432), 3),
-    "UD-Q2_0": ((_H, 41738806688, 28800138432), 3),
-    "UD-Q2_K_XL": ((_H, 49732486272, 1037181344, 28800138432), 4),
-    "UD-IQ3_XXS": ((_H, 49946027488, 4869325888, 28800138432), 4),
-    "UD-Q3_K_XL": ((_H, 49742117248, 10911746208, 28800138432), 4),
-    "UD-IQ4_XS": ((_H, 49604491008, 15256783680, 28800138432), 4),
-    "UD-Q4_K_XL": ((_H, 49720539552, 32803030176, 28800138432), 4),
-    "UD-Q5_K_XL": ((_H, 682434912, 54400261312, 49990245824, 49882416192, 3320101792), 3),
-    "UD-Q6_K_XL": ((10946624, 682434912, 54400261312, 49814108512, 49419317344, 14838313984), 3),
-    "Q8_0": ((10946624, 682434912, 54400261312, 49446841216, 49668930400, 34015618784), 3),
-}
-# MTP head files: variant -> (repo path, bytes).
-MTP_FILES = {
-    "full": ("MTP/mtp-Qwen3.8-Flash-Next-Q8_0.gguf", 4137429120),
-    "shared": ("MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf", 2786568256),
-}
 
-# --- KV / runtime model (all ESTIMATES except the architecture numbers) ---------------------------------
-# Source: Qwen model card https://huggingface.co/Qwen/Qwen3.8-Flash-Next (48 layers = 12 x (3 DeltaNet + 1 QSA)).
-FULL_ATTN_LAYERS = 12
-KV_HEADS = 2            # QSA KV heads (model card)
-HEAD_DIM = 256          # QSA head dim (model card)
-INDEXER_DIM = 128       # QSA indexer dim (model card); ASSUMED to be cached once per token per layer
-# K + V elements per token per full-attention layer, plus the assumed indexer key cache.
-KV_ELEMS_PER_TOKEN = FULL_ATTN_LAYERS * (2 * KV_HEADS * HEAD_DIM + INDEXER_DIM)
-MTP_KV_ELEMS_PER_TOKEN = 2 * KV_HEADS * HEAD_DIM  # draft block: 1 dense attention layer (PR #27836); ASSUMED
+def _spec(spec: str) -> dict:
+    if spec not in SPECS:
+        raise ValueError(f"unknown llama model {spec!r}; choose from {sorted(SPECS)}")
+    return SPECS[spec]
+
+
+# --- KV / runtime model (all ESTIMATES except the architecture numbers; per-model values in llama_specs.arch) ---
+# Flash-Next source: Qwen model card https://huggingface.co/Qwen/Qwen3.8-Flash-Next (48 layers = 12 x (3 DeltaNet + 1 QSA)).
+# indexer_dim: QSA indexer key cache, ASSUMED to be cached once per token per full-attention layer.
+# MTP draft block: 1 dense attention layer (PR #27836); ASSUMED.  DeltaNet state: fp32 v_heads x dim x dim per layer; ASSUMED.
+# runtime/mtp buffers: CUDA context + compute buffers at -ub 1024 / draft compute buffers; ASSUMED.
 KV_BYTES = {"f32": 4.0, "f16": 2.0, "bf16": 2.0, "q8_0": 34 / 32, "q5_1": 24 / 32, "q4_0": 18 / 32}  # ggml block sizes
-DELTANET_LAYERS = 36
-DELTANET_STATE_GIB = DELTANET_LAYERS * 48 * 128 * 128 * 4 / GIB  # 48 V heads x 128 x 128 fp32 per layer; ASSUMED
-RUNTIME_BUFFERS_GIB = 3.0   # CUDA context + compute buffers at -ub 1024; ASSUMED
-MTP_BUFFERS_GIB = 0.5       # draft compute buffers; ASSUMED
 HEADROOM_FRAC = 0.05        # keep 5% of VRAM free
 VRAM_TARGET = 0.75
 EST = "ESTIMATE"
@@ -136,52 +108,75 @@ def log(msg: str) -> None:
             pass
 
 
-def _shards(quant: str) -> list[tuple[str, int]]:
-    if quant not in QUANTS:
-        raise ValueError(f"unknown quant {quant!r}; choose from {sorted(QUANTS)}")
-    sizes, _ = QUANTS[quant]
+def _shards(quant: str, spec: str = DEFAULT_SPEC) -> list[tuple[str, int]]:
+    sp = _spec(spec)
+    if quant not in sp["quants"]:
+        raise ValueError(f"unknown quant {quant!r} for {spec}; choose from {sorted(sp['quants'])}")
+    sizes, _ = sp["quants"][quant]
     n = len(sizes)
-    return [(f"{quant}/Qwen3.8-Flash-Next-{quant}-{i + 1:05d}-of-{n:05d}.gguf", s) for i, s in enumerate(sizes)]
+    return [(sp["file_fmt"].format(q=quant, i=i + 1, n=n), s) for i, s in enumerate(sizes)]
 
 
-def weight_files(quant: str, mtp: bool, mtp_variant: str = "full") -> list[tuple[str, int]]:
+def _mtp_file(spec: str, mtp_variant: str) -> tuple[str, int] | None:
+    """Separate MTP head file, or None when the model has no such file (head embedded in the main GGUF)."""
+    files = _spec(spec)["mtp_files"]
+    if not files:
+        return None
+    if mtp_variant not in files:
+        raise ValueError(f"unknown mtp variant {mtp_variant!r} for {spec}; choose from {sorted(files)}")
+    return files[mtp_variant]
+
+
+def weight_files(quant: str, mtp: bool, mtp_variant: str = "full", spec: str = DEFAULT_SPEC) -> list[tuple[str, int]]:
     """Repo path and byte size of every file ensure_weights needs."""
-    files = _shards(quant)
-    if mtp:
-        files.append(MTP_FILES[mtp_variant])
+    files = _shards(quant, spec)
+    head = _mtp_file(spec, mtp_variant) if mtp else None
+    if head:
+        files.append(head)
     return files
 
 
-def plan(gpu_vram_gb: float, ctx_k: int, quant: str, kv: str, mtp: bool, mtp_variant: str = "full") -> dict:
+def plan(gpu_vram_gb: float, ctx_k: int, quant: str, kv: str, mtp: bool, mtp_variant: str = "full",
+         spec: str = DEFAULT_SPEC) -> dict:
     """VRAM budget in GiB.  Weights are file sizes (exact); everything else is an estimate."""
     if kv not in KV_BYTES:
         raise ValueError(f"unknown kv type {kv!r}; choose from {sorted(KV_BYTES)}")
-    shards = _shards(quant)
-    engram = shards[QUANTS[quant][1] - 1][1]
+    sp = _spec(spec)
+    a = sp["arch"]
+    shards = _shards(quant, spec)
+    engram_idx = sp["quants"][quant][1]
+    engram = shards[engram_idx - 1][1] if engram_idx else 0
     weights_gpu = (sum(s for _, s in shards) - engram) / GIB
     tokens = ctx_k * 1024
-    kv_gib = tokens * KV_ELEMS_PER_TOKEN * KV_BYTES[kv] / GIB
-    mtp_w = MTP_FILES[mtp_variant][1] / GIB if mtp else 0.0
-    mtp_kv = tokens * MTP_KV_ELEMS_PER_TOKEN * KV_BYTES[kv] / GIB if mtp else 0.0
-    mtp_buf = MTP_BUFFERS_GIB if mtp else 0.0
+    # K + V elements per token per full-attention layer, plus the assumed indexer key cache
+    kv_elems = a["full_attn_layers"] * (2 * a["kv_heads"] * a["head_dim"] + a["indexer_dim"])
+    kv_gib = tokens * kv_elems * KV_BYTES[kv] / GIB
+    head = _mtp_file(spec, mtp_variant) if mtp else None
+    mtp_w = head[1] / GIB if head else 0.0
+    mtp_kv = tokens * (2 * a["kv_heads"] * a["head_dim"]) * KV_BYTES[kv] / GIB if mtp else 0.0
+    mtp_buf = a["mtp_buffers_gib"] if mtp else 0.0
+    deltanet_state = a["deltanet_layers"] * a["deltanet_v_heads"] * a["deltanet_dim"] * a["deltanet_dim"] * 4 / GIB
     parts = {
         "weights_gpu_exact": weights_gpu,
         f"kv_cache_{EST}": kv_gib,
         "mtp_weights_exact": mtp_w,
         f"mtp_kv_{EST}": mtp_kv,
         f"mtp_buffers_{EST}": mtp_buf,
-        f"deltanet_state_{EST}": DELTANET_STATE_GIB,
-        f"runtime_buffers_{EST}": RUNTIME_BUFFERS_GIB,
+        f"deltanet_state_{EST}": deltanet_state,
+        f"runtime_buffers_{EST}": a["runtime_buffers_gib"],
     }
     used = sum(parts.values())
     fill = used / gpu_vram_gb
-    notes = [
-        f"engram shard {engram / GIB:.1f} GiB is kept in CPU RAM (-ot), needs that much host RAM/page cache",
-        "KV counts the 12 full-attention layers only; DeltaNet state is constant per slot",
+    notes = []
+    if engram:
+        notes.append(f"engram shard {engram / GIB:.1f} GiB is kept in CPU RAM (-ot), needs that much host RAM/page cache")
+    notes += [
+        f"KV counts the {a['full_attn_layers']} full-attention layers only; DeltaNet state is constant per slot",
         "numbers marked ESTIMATE are not measured; check nvidia-smi after start",
     ]
-    if tokens > NATIVE_CTX:
-        notes.append(f"ctx {tokens} > native {NATIVE_CTX}: static YaRN factor {tokens / NATIVE_CTX:.2f} "
+    native = sp["native_ctx"]
+    if tokens > native:
+        notes.append(f"ctx {tokens} > native {native}: static YaRN factor {tokens / native:.2f} "
                      "(may slightly hurt short-text quality)")
     if tokens < 300 * 1024:
         notes.append("ctx below the 300K requirement")
@@ -190,7 +185,7 @@ def plan(gpu_vram_gb: float, ctx_k: int, quant: str, kv: str, mtp: bool, mtp_var
     if used > gpu_vram_gb * (1 - HEADROOM_FRAC):
         notes.append("does not fit with 5% headroom: use a smaller quant, kv q8_0/q4_0 or lower ctx")
     free = gpu_vram_gb * (1 - HEADROOM_FRAC) - used
-    if free > engram / GIB:
+    if engram and free > engram / GIB:
         notes.append("enough spare VRAM to put the engram table on the GPU as well (drop the -ot flag)")
     return {
         "gpu_vram_gib": gpu_vram_gb, "ctx_k": ctx_k, "ctx_tokens": tokens, "quant": quant, "kv": kv, "mtp": mtp,
@@ -207,10 +202,21 @@ def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
 
 
 def detect_sm() -> str:
-    """Compute capability from nvidia-smi, e.g. '12.0' -> '120'."""
+    """Compute capability of GPU 0 from nvidia-smi, e.g. '7.5' -> '75' (T4), '12.0' -> '120' (G4)."""
     out = subprocess.run(["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
                          capture_output=True, text=True, check=True).stdout.split()[0]
     return out.replace(".", "")
+
+
+def cmake_args(src: str, sm: str) -> list[str]:
+    """cmake configure args.  The binary is built for exactly one GPU arch (sm) and, because the tarball is cached
+    on a shared drive, for a baseline x86 CPU (AVX2) instead of -march=native: the next session may land on a
+    different host CPU than the one that built it."""
+    if not re.fullmatch(r"\d{2,3}[a-z]?", sm):
+        raise ValueError(f"bad compute capability {sm!r}")
+    return ["cmake", "-S", src, "-B", f"{src}/build", "-DGGML_CUDA=ON", f"-DCMAKE_CUDA_ARCHITECTURES={sm}",
+            "-DGGML_NATIVE=OFF", "-DGGML_AVX2=ON", "-DGGML_FMA=ON", "-DGGML_F16C=ON", "-DGGML_BMI2=ON",
+            "-DBUILD_SHARED_LIBS=OFF", "-DLLAMA_CURL=OFF", "-DCMAKE_BUILD_TYPE=Release"]
 
 
 def detect_vram_gib() -> float:
@@ -241,9 +247,13 @@ def _extract(tarball: str, name: str) -> str:
 
 
 def ensure_llama_server(cache_dir: str, source: str = "fork", sm: str | None = None) -> str:
-    """Return a path to llama-server; build once, then reuse the tarball under cache_dir/llama.cpp/."""
+    """Return a path to llama-server; build once, then reuse the tarball under cache_dir/llama.cpp/.
+
+    Tarball, extraction dir and build dir are all named `<commit12>-sm<cc>` (cc = compute capability of this GPU),
+    so a T4 (sm75) build is never picked up on an A100 (sm80) / L4 (sm89) / H100 (sm90) / G4 (sm120) or vice versa."""
     url, branch = SOURCES[source]
     sm = sm or detect_sm()
+    cmake_args("", sm)  # validate sm before it goes into a file name
     cdir = os.path.join(cache_dir, "llama.cpp")
     os.makedirs(cdir, exist_ok=True)
     commit = _remote_commit(url, branch)
@@ -266,9 +276,8 @@ def ensure_llama_server(cache_dir: str, source: str = "fork", sm: str | None = N
     shutil.rmtree(src, ignore_errors=True)
     log(f"cloning {url} {branch}")
     _run(["git", "clone", "--depth", "1", "--branch", branch, url, src])
-    log(f"cmake configure sm{sm}")
-    _run(["cmake", "-S", src, "-B", f"{src}/build", "-DGGML_CUDA=ON", f"-DCMAKE_CUDA_ARCHITECTURES={sm}",
-          "-DBUILD_SHARED_LIBS=OFF", "-DLLAMA_CURL=OFF", "-DCMAKE_BUILD_TYPE=Release"])
+    log(f"cmake configure sm{sm} ({llama_specs.GPU_ARCHS.get(sm, 'unlisted GPU')})")
+    _run(cmake_args(src, sm))
     log("building llama-server (about 10-25 min, first start only)")
     proc = subprocess.Popen(["cmake", "--build", f"{src}/build", "--target", "llama-server",
                              "-j", str(os.cpu_count() or 4)],
@@ -305,15 +314,16 @@ def _downloaded_bytes(root: str, files: list[tuple[str, int]]) -> int:
     return done
 
 
-def ensure_weights(cache_dir: str, quant: str, mtp: bool, mtp_variant: str = "full", progress=None) -> dict:
-    """Download missing files into cache_dir/<MODEL_DIRNAME>/ and return their paths.
+def ensure_weights(cache_dir: str, quant: str, mtp: bool, mtp_variant: str = "full", progress=None,
+                   spec: str = DEFAULT_SPEC) -> dict:
+    """Download missing files into cache_dir/<repo id>/ and return their paths (layout app.py uses for MODEL_CATALOG).
 
     progress(fraction, text) is called every ~2 s from a helper thread while files download."""
-    root = os.path.join(cache_dir, MODEL_DIRNAME)
+    root = os.path.join(cache_dir, _spec(spec)["repo"])
     os.makedirs(root, exist_ok=True)
     stop = threading.Event()
     if progress is not None:
-        files = weight_files(quant, mtp, mtp_variant)
+        files = weight_files(quant, mtp, mtp_variant, spec)
         total = sum(s for _, s in files)
 
         def _poll():
@@ -322,47 +332,50 @@ def ensure_weights(cache_dir: str, quant: str, mtp: bool, mtp_variant: str = "fu
                 progress(done / total, f"{done / 1e9:.1f} / {total / 1e9:.1f} GB")
         threading.Thread(target=_poll, daemon=True).start()
     try:
-        return _ensure_weights(root, quant, mtp, mtp_variant)
+        return _ensure_weights(root, quant, mtp, mtp_variant, spec)
     finally:
         stop.set()
 
 
-def _ensure_weights(root: str, quant: str, mtp: bool, mtp_variant: str) -> dict:
+def _ensure_weights(root: str, quant: str, mtp: bool, mtp_variant: str, spec: str) -> dict:
     if importlib.util.find_spec("hf_transfer") is not None:
         os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"  # set before huggingface_hub is imported
     from huggingface_hub import hf_hub_download
     paths = {}
-    for rel, size in weight_files(quant, mtp, mtp_variant):
+    for rel, size in weight_files(quant, mtp, mtp_variant, spec):
         dest = os.path.join(root, *rel.split("/"))
         if os.path.isfile(dest) and os.path.getsize(dest) == size:
             log(f"have {rel}")
         else:
             log(f"downloading {rel} ({size / 1e9:.1f} GB)")
-            hf_hub_download(HF_REPO, rel, local_dir=root)
+            hf_hub_download(_spec(spec)["repo"], rel, local_dir=root)
             if os.path.getsize(dest) != size:
                 raise RuntimeError(f"{rel}: size {os.path.getsize(dest)} != expected {size}")
         paths[rel] = dest
-    shard_paths = [paths[r] for r, _ in _shards(quant)]
-    return {"root": root, "model": shard_paths[0], "shards": shard_paths,
-            "mtp": paths[MTP_FILES[mtp_variant][0]] if mtp else None}
+    shard_paths = [paths[r] for r, _ in _shards(quant, spec)]
+    head = _mtp_file(spec, mtp_variant) if mtp else None
+    return {"root": root, "model": shard_paths[0], "shards": shard_paths, "mtp": paths[head[0]] if head else None}
 
 
 # --- command / process ------------------------------------------------------------------------------------
-def build_command(paths: dict, ctx_k: int, kv: str, mtp: bool, port: int, draft_n: int = 2,
-                  host: str = "127.0.0.1", binary: str = "llama-server", threads: int | None = None) -> list[str]:
+def build_command(paths: dict, ctx_k: int, kv: str, mtp: bool, port: int, draft_n: int | None = None,
+                  host: str = "127.0.0.1", binary: str = "llama-server", threads: int | None = None,
+                  spec: str = DEFAULT_SPEC) -> list[str]:
+    sp = _spec(spec)
     tokens = ctx_k * 1024
-    cmd = [binary, "-m", paths["model"], "--alias", ALIAS, "--host", host, "--port", str(port),
-           "-c", str(tokens), "-np", "1", "-ngl", "999", "-ot", ENGRAM_TENSOR_RE,
+    cmd = [binary, "-m", paths["model"], "--alias", sp["alias"], "--host", host, "--port", str(port),
+           "-c", str(tokens), "-np", "1", "-ngl", "999", *sp["extra_args"],
            "-fa", "on", "-ctk", kv, "-ctv", kv, "-b", "2048", "-ub", "1024",
-           "--jinja", "--metrics",
-           "--temp", "1.0", "--top-p", "0.95", "--top-k", "20", "--min-p", "0.0"]
+           "--jinja", "--metrics", *sp["sampling"]]
     if threads:
         cmd += ["-t", str(threads)]
-    if tokens > NATIVE_CTX:
-        cmd += ["--rope-scaling", "yarn", "--rope-scale", f"{tokens / NATIVE_CTX:g}",
-                "--yarn-orig-ctx", str(NATIVE_CTX)]
+    if tokens > sp["native_ctx"]:
+        cmd += ["--rope-scaling", "yarn", "--rope-scale", f"{tokens / sp['native_ctx']:g}",
+                "--yarn-orig-ctx", str(sp["native_ctx"])]
     if mtp:
-        cmd += ["-md", paths["mtp"], "--spec-type", "draft-mtp", "--spec-draft-n-max", str(draft_n)]
+        if paths.get("mtp"):  # models whose MTP head is inside the main GGUF have no -md file
+            cmd += ["-md", paths["mtp"]]
+        cmd += ["--spec-type", "draft-mtp", "--spec-draft-n-max", str(draft_n or sp["draft_n"])]
     return cmd
 
 
@@ -412,7 +425,7 @@ def log_tail(path: str, n: int = 400) -> str:
         return ""
 
 
-def forward(port: int, path: str, raw: bytes, timeout: float = 900.0):
+def forward(port: int, path: str, raw: bytes, timeout: float = 900.0, label: str = "Flash-Next"):
     """POST raw bytes to llama-server (loopback, env proxies ignored).  Returns (status, content_type, file-like
     response the caller must close); never raises: connection errors become a 502 JSON body."""
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=raw, method="POST",
@@ -423,51 +436,63 @@ def forward(port: int, path: str, raw: bytes, timeout: float = 900.0):
     except urllib.error.HTTPError as e:
         return e.code, e.headers.get_content_type(), e
     except Exception as e:
-        body = json.dumps({"error": {"message": f"Flash-Next server unreachable: {e}", "type": "server_error"}})
+        body = json.dumps({"error": {"message": f"{label} server unreachable: {e}", "type": "server_error"}})
         return 502, "application/json", io.BytesIO(body.encode())
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--model", default=DEFAULT_SPEC, choices=sorted(SPECS), help="app model id (llama_specs.SPECS)")
     ap.add_argument("--cache", required=True)
     ap.add_argument("--gpu-vram", type=float, help="GiB; default from nvidia-smi")
-    ap.add_argument("--ctx", type=int, default=512, help="context in K tokens (1K = 1024)")
-    ap.add_argument("--quant", default="UD-IQ4_XS", choices=sorted(QUANTS))
-    ap.add_argument("--kv", default="q8_0", choices=sorted(KV_BYTES))
+    ap.add_argument("--sm", help="compute capability without the dot (T4 75, A100 80, L4 89, H100 90, G4 120); "
+                                 "default from nvidia-smi; with --dry-run it adds the build recipe to the output")
+    ap.add_argument("--ctx", type=int, help="context in K tokens (1K = 1024); default per model")
+    ap.add_argument("--quant", help="default per model")
+    ap.add_argument("--kv", default=None, choices=sorted(KV_BYTES), help="default per model")
     ap.add_argument("--mtp", action="store_true")
-    ap.add_argument("--mtp-variant", default="full", choices=sorted(MTP_FILES))
-    ap.add_argument("--draft-n", type=int, default=2)
+    ap.add_argument("--mtp-variant", default="full")
+    ap.add_argument("--draft-n", type=int, help="default per model")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--llama-source", default="fork", choices=sorted(SOURCES))
     ap.add_argument("--timeout", type=float, default=1800)
     ap.add_argument("--dry-run", action="store_true", help="print plan, file list and command; no network/GPU/git")
     a = ap.parse_args()
+    sp = _spec(a.model)
+    quant, kv, ctx = a.quant or sp["default_quant"], a.kv or sp["default_kv"], a.ctx or sp["default_ctx_k"]
+    if quant not in sp["quants"]:
+        ap.error(f"--quant must be one of {sorted(sp['quants'])} for {a.model}")
 
     vram = a.gpu_vram if a.gpu_vram else detect_vram_gib()
-    p = plan(vram, a.ctx, a.quant, a.kv, a.mtp, a.mtp_variant)
+    p = plan(vram, ctx, quant, kv, a.mtp, a.mtp_variant, a.model)
     if a.dry_run:
-        root = os.path.join(a.cache, MODEL_DIRNAME)
-        files = weight_files(a.quant, a.mtp, a.mtp_variant)
+        root = os.path.join(a.cache, sp["repo"])
+        files = weight_files(quant, a.mtp, a.mtp_variant, a.model)
+        head = _mtp_file(a.model, a.mtp_variant) if a.mtp else None
         paths = {"model": os.path.join(root, *files[0][0].split("/")),
-                 "mtp": os.path.join(root, *MTP_FILES[a.mtp_variant][0].split("/")) if a.mtp else None}
+                 "mtp": os.path.join(root, *head[0].split("/")) if head else None}
         url, branch = SOURCES[a.llama_source]
+        build = {"url": url, "branch": branch}
+        if a.sm:
+            build.update(sm=a.sm, gpu=llama_specs.GPU_ARCHS.get(a.sm), cache_file=f"llama.cpp/<commit12>-sm{a.sm}.tar.gz",
+                         cmake=" ".join(cmake_args("<src>", a.sm)))
         print(json.dumps(p, indent=2))
-        print(json.dumps({"hf_repo": HF_REPO, "llama_cpp": {"url": url, "branch": branch},
+        print(json.dumps({"hf_repo": sp["repo"], "llama_cpp": build,
                           "files": [{"path": r, "bytes": s} for r, s in files],
                           "total_gb": round(sum(s for _, s in files) / 1e9, 1)}, indent=2))
-        print(" ".join(build_command(paths, a.ctx, a.kv, a.mtp, a.port, a.draft_n)))
+        print(" ".join(build_command(paths, ctx, kv, a.mtp, a.port, a.draft_n, spec=a.model)))
         return 0
     if not p["fits"]:
         log("plan says it does not fit: " + "; ".join(p["notes"]))
         return 2
-    exe = ensure_llama_server(a.cache, a.llama_source)
-    paths = ensure_weights(a.cache, a.quant, a.mtp, a.mtp_variant)
-    proc = launch(build_command(paths, a.ctx, a.kv, a.mtp, a.port, a.draft_n, binary=exe, threads=os.cpu_count()))
+    exe = ensure_llama_server(a.cache, a.llama_source, a.sm)
+    paths = ensure_weights(a.cache, quant, a.mtp, a.mtp_variant, spec=a.model)
+    proc = launch(build_command(paths, ctx, kv, a.mtp, a.port, a.draft_n, binary=exe, threads=os.cpu_count(), spec=a.model))
     if not wait_ready(a.port, a.timeout, proc):
         log("not ready; see /tmp/llama-server.log")
         proc.terminate()
         return 1
-    log(f"READY http://127.0.0.1:{a.port}/v1 model={ALIAS}")
+    log(f"READY http://127.0.0.1:{a.port}/v1 model={sp['alias']}")
     return proc.wait()
 
 
