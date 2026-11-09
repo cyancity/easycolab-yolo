@@ -24,7 +24,14 @@ python -m venv .venv
 
 申请实例默认不带 `shape=hm`（与官方 colab-cli 一致；2026-11-10 实测带 hm 的 T4 在免费档和 Ultra 账号上都返回 503）。`POST /api/deploy` 的 `params` 可以加两个开关：`high_mem: true` 给 T4/A100 申请大内存规格，`probe: true` 只发一次分配请求、503 不重试。llama.cpp 模型还可以传 `load.options`，例如 `{"load": {"options": {"quant": "UD-Q2_0", "draft_n": 2}}}`；可选量化见 `runtime/llama_specs.py`。
 
-Flash-Next 在 G4 上的实测（2026-11-10，IQ4_XS，512K，MTP 草稿 2）：短输入单流 108–136 tok/s，显存 82.9 / 97.9 GB；33.6 万 token 输入时预填充 1,376 tok/s、解码 30.6 tok/s。Colab 分到的 A100 是 40GB 版，放不下 Flash-Next。
+Flash-Next 在 G4 上的实测（2026-11-10，IQ4_XS，MTP 草稿 2）：
+
+- 默认 256K、4 个请求槽（`-np 4 --kv-unified`）：部署自测单流 121.4 tok/s，显存 74.1 / 95.0 GB。
+- 并发总吞吐：1 路 124、2 路 168、4 路 190 tok/s（每路 52–62）、8 路仍是 190。关掉 MTP 时单流 103、4 路 212。
+- 内存提示词缓存（`--cache-ram`，上限取 60 GB 与内存 35% 的较小值）：同一段 9.6 万 token 前缀隔两个别的请求再发，预填充从 33.5 s 降到 0.2 s。命中来自内存缓存还是请求槽里残留的 KV，未确认。
+- 33.6 万 token 输入（512K 部署）：预填充 1,376 tok/s，解码 30.6 tok/s。
+
+Qwen3.8-27B GGUF（UD-Q4_K_M，256K，MTP）在同一台 G4：部署自测 87.2 tok/s，首字 1.32 s，显存 30.9 GB。Colab 分到的 A100 是 40GB 版，放不下 Flash-Next。
 
 界面开发可以用样例数据，不碰真实 Colab：`http://127.0.0.1:8790/?mock=daily`（另有 `trouble`、`fresh`、`offline`）。
 
