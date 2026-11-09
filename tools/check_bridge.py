@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PRE_SPLIT_REV = "967d23f"
 # 拆分后有意改动的定义：名字 -> 原因。这些跳过 AST 对比，其余仍须与旧版一致
 INTENDED = {
-    "_allocate_fresh_session": "COLAB_FLEET_HIGH_MEM=0 时不带 shape=hm（排查 503 的单次探测）",
+    "_allocate_fresh_session": "默认不带 shape=hm，COLAB_FLEET_HIGH_MEM=1 才带（带 hm 的 T4 实测 503）",
 }
 
 

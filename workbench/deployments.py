@@ -30,8 +30,8 @@ _cooldown: Dict[tuple, float] = {}  # (email, gpu) -> 可再次申请的时间�
 COOLDOWN_S = 600
 RELEASE_EVERY = 60  # 释放失败后的重试间隔（秒）
 RELEASE_TRIES = 10
-# 部署参数 probe=true：只发 1 次分配请求，不带 shape=hm（排查 503 用）
-PROBE_ENV = {"COLAB_FLEET_HIGH_MEM": "0", "COLAB_CLI_ASSIGN_RETRIES": "0"}
+# 部署参数：probe=true 只发 1 次分配请求（503 不重试）；high_mem=true 给 T4/A100 申请大内存规格
+PARAM_ENV = {"probe": {"COLAB_CLI_ASSIGN_RETRIES": "0"}, "high_mem": {"COLAB_FLEET_HIGH_MEM": "1"}}
 # Colab 限流可能按出口 IP 计：任一账号被拒后，所有账号一起暂停分配，避免被判定为滥用
 _global = {"until": 0.0, "why": ""}
 # 不落盘的运行时字段；以下划线开头的键（子进程句柄、重试计数等）同样不落盘
@@ -285,7 +285,10 @@ def _kill_proc(p):
 
 def _wake(d: dict):
     home = accounts.home_of(d["email"])
-    env = {**accounts.bridge_env(home), **(PROBE_ENV if d["params"].get("probe") else {})}
+    env = accounts.bridge_env(home)
+    for k, extra in PARAM_ENV.items():
+        if d["params"].get(k) is True:
+            env.update(extra)
     cmd = [sys.executable, str(BRIDGE), "wake", "--gpu", d["gpu"], "--session", d["session"], "--app-py", str(APP_PY)]
     extra = {} if sys.platform == "win32" else {"start_new_session": True}
     p = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
