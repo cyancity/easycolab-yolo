@@ -19,6 +19,10 @@ for res_name in ("app.py", "colab_bridge.py", "EasyColab_Server.ipynb", "require
     if src.exists():
         datas.append((str(src), "."))
 
+# colab_bridge.py 的实现包，随脚本一起放进 _internal/bridge
+for py_file in sorted((PROJECT_ROOT / "bridge").glob("*.py")):
+    datas.append((str(py_file), "bridge"))
+
 if ICON_PATH.exists():
     datas.append((str(ICON_PATH), "assets"))
 png_path = SPEC_DIR / "assets" / "AppIcon.png"

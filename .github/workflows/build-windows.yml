@@ -9,6 +9,7 @@ on:
     paths:
       - "windows_app/**"
       - "colab_bridge.py"
+      - "bridge/**"
       - "app.py"
       - "colab_server/**"
       - "runtime/**"
