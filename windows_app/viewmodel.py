@@ -100,7 +100,8 @@ class EasyColabViewModel(QObject):
         self.reasoning_effort: str = str(self._settings.get("reasoningEffort", "medium"))
         if self.reasoning_effort not in {"low", "medium", "high", "xhigh"}:
             self.reasoning_effort = "medium"
-        self.api_key_enabled: bool = bool(self._settings.get("apiKeyEnabled", True))
+        # 服务端已强制鉴权（空密钥会被拒），客户端不再提供关闭开关
+        self.api_key_enabled: bool = True
         self.api_access_key: str = str(self._settings.get("apiAccessKey", "")).strip()
         if not self.api_access_key:
             self.api_access_key = "sk-colab-" + secrets.token_hex(10)
@@ -949,6 +950,8 @@ class EasyColabViewModel(QObject):
                     self.active_vm_count = 0
                     self.usage_note = ""
                     self.active_gpu_summary = ""
+                    # 旧服务地址属于上一个账号的实例，不清掉会继续连到旧账号的 GPU
+                    self.set_colab_server_url("")
                     self.reset_stale_remote_runtime_state(
                         tr(
                             f"已切换到 {masked}，云端状态已复位。",
@@ -1407,7 +1410,8 @@ class EasyColabViewModel(QObject):
             self._remote_idle_synced = True
             if d.get("idle_timeout_minutes") != self.idle_timeout_minutes:
                 self.update_idle_timeout_config(self.idle_timeout_minutes)
-        if self.api_key_enabled and not bool(d.get("api_key_enabled", False)) and not self._remote_api_key_synced:
+        # 服务端每次启动自带随机 key，客户端展示的是自己的 key，所以每次连接都要推送一次
+        if not self._remote_api_key_synced:
             self._remote_api_key_synced = True
             self.sync_api_key_to_colab()
 
@@ -1728,7 +1732,9 @@ class EasyColabViewModel(QObject):
         base = self.normalized_base_url
         if not self.is_connected or not base:
             return
-        payload_key = self.api_access_key.strip() if self.api_key_enabled else ""
+        payload_key = self.api_access_key.strip()
+        if not payload_key:
+            return
 
         def worker() -> None:
             try:

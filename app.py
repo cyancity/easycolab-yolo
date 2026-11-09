@@ -8410,6 +8410,13 @@ if __name__ == "__main__":
         css=CUSTOM_CSS,
     )
     attach_macos_api_routes(app)
+    # 供同机进程（桥接的 stop_all 云盘兜底同步）拼出带密钥的本地 API 路径
+    try:
+        with open("/content/.easycolab_runtime_secret", "w") as _sf:
+            _sf.write(RUNTIME_SECRET)
+        os.chmod("/content/.easycolab_runtime_secret", 0o600)
+    except Exception:
+        pass
     full_api_url = ((share_url or local_url) or "").rstrip("/") + "/k/" + RUNTIME_SECRET
     print("\n" + "=" * 72)
     print("🍎 【EasyColab 服务地址】请复制下方完整链接（含 /k/ 密钥段）粘贴到客户端：")

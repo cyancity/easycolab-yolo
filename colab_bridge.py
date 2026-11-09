@@ -62,7 +62,7 @@ _sync_macos_system_proxies_to_env()
 
 from colab_cli.auth import PUBLIC_SCOPES, TOKEN_CONFIG_PATH, REMOTE_REDIRECT_URI
 from colab_cli.common import state
-from colab_cli.client import Accelerator, Variant, Shape, resolve_assign_shape, PostAssignmentResponse, ColabRequestError
+from colab_cli.client import Accelerator, Variant, Shape, resolve_assign_shape, PostAssignmentResponse, ColabRequestError, TooManyAssignmentsError
 from colab_cli.state import SessionState
 from colab_cli.runtime import ColabRuntime
 from colab_cli.contents import ContentsClient
@@ -293,8 +293,8 @@ def _safe_sync_sessions():
             return state.sync_sessions()
         except Exception:
             if attempt == 2:
-                cached = {s.name: s for s in state.store.list()}
-                return cached, []
+                # store.list() 返回 {name: SessionState}，直接复制即可
+                return dict(state.store.list()), []
             time.sleep(1.2)
 
 
@@ -304,14 +304,26 @@ def cmd_auth_status():
         return
 
     email = _get_account_email()
+    # 升级前就已登录的账号不在多账号库里，首次换号会丢；这里补录一次
+    if email and not any(
+        str(a.get("email") or "").strip().lower() == email.lower()
+        for a in _load_accounts_store().get("accounts", [])
+    ):
+        try:
+            with open(TOKEN_CONFIG_PATH, "r", encoding="utf-8") as f:
+                _upsert_account(email, f.read())
+        except Exception:
+            pass
     # CU 用量查询单独容错：免费账号无 CU 计量时会异常，降级为 null 并附 usage_error，不拖垮整个状态输出
     usage_error = None
     paid_balance = burn_rate_hourly = active_assignments = None
+    eligible_gpus = []
     try:
-        info = state.client.get_consumption_user_info()
-        paid_balance = round(float(info.paid_compute_units_balance), 2)
-        burn_rate_hourly = round(float(info.consumption_rate_hourly), 2)
-        active_assignments = int(info.assignments_count)
+        info = _fetch_ccu_info_raw()
+        paid_balance = round(float(info.get("currentBalance") or 0), 2)
+        burn_rate_hourly = round(float(info.get("consumptionRateHourly") or 0), 2)
+        active_assignments = int(info.get("assignmentsCount") or 0)
+        eligible_gpus = [str(g).upper() for g in info.get("eligibleGpus") or []]
     except Exception as e:
         usage_error = str(e)[:120]
 
@@ -334,6 +346,7 @@ def cmd_auth_status():
         "paid_balance": paid_balance,
         "burn_rate_hourly": burn_rate_hourly,
         "active_assignments": active_assignments,
+        "eligible_gpus": eligible_gpus,
         "sessions": sess_list,
     }
     if usage_error:
@@ -374,11 +387,12 @@ def cmd_accounts_switch(email: str):
         print(json.dumps({"ok": False, "error": str(e)[:200]}))
         return
     try:
-        # 库里凭据可能已过期，切换时先刷新；刷新失败不阻断切换，由随后的 auth_status 如实报告登录态
+        # 库里凭据可能已过期，先刷新；刷新失败就不动 token.json，保持当前账号可用
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-    except Exception:
-        pass
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": f"该账号凭据已失效，请重新登录：{str(e)[:120]}"}))
+        return
     token_json = creds.to_json()
     os.makedirs(os.path.dirname(TOKEN_CONFIG_PATH), exist_ok=True)
     with open(TOKEN_CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -478,8 +492,10 @@ def cmd_stop_all():
                     rt.execute_code(
                         "import urllib.request\n"
                         "try:\n"
+                        # API 挂在 /k/<密钥> 下，裸路径 403；密钥由 app.py 启动时写入该文件
+                        "    _k = open('/content/.easycolab_runtime_secret').read().strip()\n"
                         "    urllib.request.urlopen(urllib.request.Request("
-                        "'http://127.0.0.1:7860/minimax_api/comfyui/sync_drive', "
+                        "'http://127.0.0.1:7860/k/' + _k + '/minimax_api/comfyui/sync_drive', "
                         "data=b'{}', headers={'Content-Type':'application/json'}, method='POST'), timeout=18)\n"
                         "except Exception:\n"
                         "    pass\n",
@@ -568,19 +584,69 @@ def _resolve_gpu_accel(gpu_type: str) -> Accelerator:
     return GPU_ACCEL_MAP.get((gpu_type or "g4").strip().lower(), Accelerator.G4)
 
 
+class AllocationError(Exception):
+    """分配失败，消息已转成用户能看懂的中文说明"""
+
+
+def _fetch_ccu_info_raw() -> dict:
+    """GET /tun/m/ccu-info 原始 JSON。colab_cli 的 CcuInfo 会丢掉 eligibleGpus/ineligibleGpus，这里自己解析"""
+    r = state.client.session.request(
+        "GET",
+        "https://colab.research.google.com/tun/m/ccu-info",
+        params={"authuser": "0"},
+        headers={"Accept": "application/json", "X-Colab-Client-Agent": "colab-cli"},
+        timeout=15,
+    )
+    r.raise_for_status()
+    body = r.text[len(")]}'\n"):] if r.text.startswith(")]}'\n") else r.text
+    return json.loads(body or "{}")
+
+
+def _check_gpu_eligible(accel: Accelerator):
+    """分配前查账号资格：不在 eligibleGpus 里的卡直接拒绝，不发 assign 请求（避免无效请求累积被风控）"""
+    try:
+        info = _fetch_ccu_info_raw()
+    except Exception:
+        return  # 查询失败不阻断分配，交给 assign 自己报错
+    eligible = [str(g).upper() for g in info.get("eligibleGpus") or []]
+    if eligible and accel.value.upper() not in eligible:
+        raise AllocationError(
+            f"当前账号没有 {accel.value} 的使用资格，可用：{', '.join(eligible)}。请换卡或切换到有该资格的账号。"
+        )
+
+
+def _explain_assign_error(accel: Accelerator, err: Exception) -> str:
+    status = getattr(getattr(err, "response", None), "status_code", None)
+    if status == 503:
+        return (
+            f"Colab 暂时分不出 {accel.value}（HTTP 503，已自动重试 3 次）。"
+            "通常是该型号容量紧张；若所有付费卡都 503 而 T4 正常，也可能是账号被临时限制，"
+            "可在 Colab 网页里连一次该 GPU 查看提示。请稍后再试或换卡，不要短时间反复点。"
+        )
+    if status == 400:
+        return f"Colab 拒绝了 {accel.value}（HTTP 400）：账号没有该型号的资格或参数不支持，请换卡。"
+    return f"申请 {accel.value} 失败：{err}"
+
+
 def _allocate_fresh_session(session_name: str, gpu_type: str) -> SessionState:
     accel = _resolve_gpu_accel(gpu_type)
+    _check_gpu_eligible(accel)
     shape = None if accel in SINGLE_SHAPE_GPUS else resolve_assign_shape(accel, high_mem=True)
     gpu_desc = "G4 (RTX PRO 6000 · 96GB)" if accel == Accelerator.G4 else accel.value
     print(f"WAKE_LOG: 🚀 正在向 Google Colab 申请分配 {gpu_desc} 实例...", flush=True)
     try:
-        res = state.client.assign(uuid.uuid4(), variant=Variant.GPU, accelerator=accel, shape=shape)
+        try:
+            res = state.client.assign(uuid.uuid4(), variant=Variant.GPU, accelerator=accel, shape=shape)
+        except ColabRequestError as req_err:
+            if shape is not None and getattr(getattr(req_err, "response", None), "status_code", None) == 400:
+                shape = None
+                res = state.client.assign(uuid.uuid4(), variant=Variant.GPU, accelerator=accel, shape=None)
+            else:
+                raise
+    except TooManyAssignmentsError:
+        raise AllocationError("Colab 拒绝分配（HTTP 412）：账号下活动实例过多或触发了临时用量限制，先释放其他实例再试。")
     except ColabRequestError as req_err:
-        if shape is not None and getattr(getattr(req_err, "response", None), "status_code", None) == 400:
-            shape = None
-            res = state.client.assign(uuid.uuid4(), variant=Variant.GPU, accelerator=accel, shape=None)
-        else:
-            raise
+        raise AllocationError(_explain_assign_error(accel, req_err))
     if isinstance(res, PostAssignmentResponse):
         token = res.runtime_proxy_info.token
         url = res.runtime_proxy_info.url
@@ -651,6 +717,8 @@ def cmd_wake(gpu_type: str, app_py_path: str):
             state.store.add(target_session)
 
         requested_accel = _resolve_gpu_accel(gpu_type)
+        # 先确认资格再动旧实例，避免"旧卡已释放、新卡又申请不到"
+        _check_gpu_eligible(requested_accel)
         if target_session:
             cur_acc = (target_session.accelerator or "").strip().upper()
             if cur_acc != requested_accel.value.upper():
@@ -807,9 +875,10 @@ for _ in range(90):
     time.sleep(2)
     if os.path.exists(log_path):
         txt = open(log_path, "r", errors="replace").read()
-        m = url_re.search(txt)
-        if m:
-            found_url = m.group(0)
+        # Gradio 会先打印不带密钥段的 "Running on public URL"，只认带 /k/ 的完整地址
+        keyed = [u for u in url_re.findall(txt) if "/k/" in u]
+        if keyed:
+            found_url = keyed[-1]
             break
 
 if found_url:

@@ -1520,6 +1520,7 @@ class EasyColabMainWindow(QMainWindow):
         )
         self.api_auth_chk.setChecked(self.vm.api_key_enabled)
         self.api_auth_chk.toggled.connect(self.vm.set_api_key_enabled)
+        self.api_auth_chk.setVisible(False)  # 服务端强制鉴权，开关已无意义
         top_r.addWidget(self.api_auth_chk)
         top_r.addStretch(1)
         self.api_coresident_hint = QLabel("")

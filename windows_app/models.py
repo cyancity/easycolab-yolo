@@ -1129,6 +1129,9 @@ def mask_url_display(text: str, mask_enabled: bool) -> str:
         return text
     out = re.sub(r"https?://[a-zA-Z0-9.-]+\.gradio\.live", "https://••••••••••••.gradio.live", text)
     out = re.sub(r"https?://[a-zA-Z0-9.-]+\.trycloudflare\.com", "https://••••••••••••.trycloudflare.com", out)
+    # 路径密钥和服务端打印的 API Key 也会出现在日志里，一并打码
+    out = re.sub(r"/k/[A-Za-z0-9_-]+", "/k/••••••", out)
+    out = re.sub(r"(API Key:\s*)\S+", r"\g<1>••••••", out)
     return out
 
 
