@@ -585,7 +585,14 @@ if os.path.exists(os.path.expanduser("~/.config/rclone/rclone.conf")):
 if not os.path.exists("/content/DiffSynth-Studio"):
     print("正在克隆 DiffSynth-Studio...", flush=True)
     subprocess.run(["git", "clone", "--depth", "1", "https://github.com/modelscope/DiffSynth-Studio.git", "/content/DiffSynth-Studio"], check=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "transformers", "accelerate", "bitsandbytes", "huggingface_hub", "hf_transfer", "qwen-vl-utils", "einops", "kernels>=0.17.2,<0.18.0", "av", "gradio", "modelscope", "imageio", "imageio-ffmpeg", "scipy", "soundfile", "librosa"], check=True)
+    # 大包安装改为后台 + 心跳输出：内核长时间静默会触发桥接侧 iopub 超时（300s），
+    # 超时后桥接会换新内核重跑 boot_code，而旧内核仍在装包，两个 pip 并发改坏 site-packages
+    _pip = subprocess.Popen([sys.executable, "-m", "pip", "install", "-q", "-U", "transformers", "accelerate", "bitsandbytes", "huggingface_hub", "hf_transfer", "qwen-vl-utils", "einops", "kernels>=0.17.2,<0.18.0", "av", "gradio", "modelscope", "imageio", "imageio-ffmpeg", "scipy", "soundfile", "librosa"])
+    while _pip.poll() is None:
+        time.sleep(30)
+        print("⏳ 依赖安装中，请稍候...", flush=True)
+    if _pip.returncode != 0:
+        raise RuntimeError("pip install failed with exit code %s" % _pip.returncode)
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "fla-core", "flash-linear-attention"], check=False)
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "--only-binary=:all:", "causal-conv1d"], check=False)
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", "/content/DiffSynth-Studio"], check=True)
@@ -600,7 +607,13 @@ else:
 # 2. 检查是否已有运行中的 app.py 或 llama-server，先清理旧进程释放 GPU 显存
 subprocess.run(["pkill", "-f", "python.*/content/app.py"], check=False)
 subprocess.run(["pkill", "-f", "llama-server"], check=False)
-time.sleep(1)
+# 等旧进程真正退出再拉起新实例：app.py 退出时有 Drive 同步等清理动作，固定 sleep(1) 可能不够，
+# 新进程会因 7860 端口被占而启动失败
+for _ in range(10):
+    _probe = subprocess.run(["pgrep", "-f", "python.*/content/app.py"], capture_output=True)
+    if _probe.returncode != 0:
+        break
+    time.sleep(1)
 
 # 3. 后台启动 /content/app.py 并等待 gradio.live 链接生成
 log_path = "/content/easycolab_server.log"
@@ -610,7 +623,8 @@ if os.path.exists(log_path):
 with open(log_path, "w") as out_f:
     subprocess.Popen([sys.executable, "-u", "/content/app.py"], cwd="/content", stdout=out_f, stderr=subprocess.STDOUT)
 
-url_re = re.compile(r"https://[a-zA-Z0-9.-]+\.gradio\.live")
+# 服务地址含 /k/<密钥> 路径段（API 全部挂载其下，裸路径 403），提取时必须保留
+url_re = re.compile(r"https://[a-zA-Z0-9.-]+\.gradio\.live(?:/k/[A-Za-z0-9_-]+)?")
 found_url = None
 for _ in range(90):
     time.sleep(2)
