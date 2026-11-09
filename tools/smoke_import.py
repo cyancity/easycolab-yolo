@@ -145,7 +145,8 @@ def main():
         import re
         with open(os.path.join(a.root, "app.py"), encoding="utf-8") as f:
             order = re.findall(r"^    (\w+),$", f.read(), re.M)
-    got = [x.split(".", 1)[1] for x in pkg["loads"]]
+    # 子模块（routes_*、qwen_optimize_* 等）由父模块导入，只比较入口列出的顶层模块的先后
+    got = [m for m in (x.split(".", 1)[1] for x in pkg["loads"]) if m in order]
     if got != order:
         print("警告：模块开始加载的顺序和切片顺序不同（底部前向 import 提前加载了后面的模块）：")
         print("  期望", order)

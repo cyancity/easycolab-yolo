@@ -49,7 +49,10 @@ def write_cells(entry_text: str):
     if not order:  # 单文件模式：和拆分前一样
         return [code_cell("write_webui", MARK + "app.py\n" + entry_text)]
     cells = [code_cell("make_pkg_dir", f"#@title 创建服务端包目录\n!mkdir -p {PKG}")]
-    for mod in ["__init__"] + order:
+    listed = ["__init__"] + order
+    # 入口只列顶层模块；子模块（如 routes_*.py）由父模块导入，也要写进笔记本
+    extra = sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, PKG)) if f.endswith(".py") and f[:-3] not in listed)
+    for mod in listed + extra:
         path = os.path.join(ROOT, PKG, mod + ".py")
         if not os.path.isfile(path):
             sys.exit(f"build_notebook: 缺少 {PKG}/{mod}.py，先跑 tools/split_app.py")
