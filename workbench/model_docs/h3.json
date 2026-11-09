@@ -1,0 +1,42 @@
+{
+  "id": "h3",
+  "name": "MiniMax-H3",
+  "hf": "https://huggingface.co/MiniMaxAI/MiniMax-H3",
+  "summary": "文生视频模型，权重 134 GB，需内存卸载，G4 上约 6 分钟生成 5 秒。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": [
+    {
+      "title": "铁道口少女",
+      "scene": "新海诚风格 · 铁道口少女",
+      "prompt": "Masterpiece Makoto Shinkai anime style, 2D cel-shaded animation. A teenage girl in a Japanese sailor school uniform standing at a sunlit railway crossing in late spring. A green commuter train speeds past in front of her, creating a strong gust of wind that blows her long black hair and a flurry of pink cherry blossom petals across the frame. Dramatic lens flare, glowing cumulous clouds in a deep blue sky, vibrant cinematic lighting, smooth 24fps keyframe animation.",
+      "sound": "Metallic clacking of train wheels on railway tracks, rhythmic dinging of the railroad crossing warning bell, warm spring wind rustling through leaves, a soft gasp from the girl.",
+      "music": "Emotional and nostalgic solo piano melody joined by warm acoustic guitar and soaring cinematic strings.",
+      "params": {
+        "width": 832,
+        "height": 480,
+        "num_frames": 124,
+        "num_inference_steps": 35
+      },
+      "source": "app.py PRESET_EXAMPLES",
+      "source_note": "EasyColab 原版内置示例"
+    },
+    {
+      "title": "剑士战斗",
+      "scene": "ufotable 风格 · 剑士战斗",
+      "prompt": "High-budget ufotable anime action sakuga, dynamic fast-paced camera tracking. A silver-haired anime swordsman in a dark haori coat dashes across a shattered stone temple under a blood-red full moon, swinging a katana wreathed in crackling blue lightning and swirling water dragon effects. Sparks and glowing embers fly toward the camera in slow-motion impact frames, intense anime shading, dramatic motion blur.",
+      "sound": "Sharp metallic sword unsheathing and clashing clang, roaring thunder and crackling electric arcs, heavy stone debris crumbling, fierce battle cry.",
+      "music": "Epic dark orchestral battle music with fast taiko drums, intense choir, and distorted electric guitar riffs.",
+      "params": {
+        "width": 832,
+        "height": 480,
+        "num_frames": 124,
+        "num_inference_steps": 40
+      },
+      "source": "app.py PRESET_EXAMPLES",
+      "source_note": "EasyColab 原版内置示例"
+    }
+  ]
+}

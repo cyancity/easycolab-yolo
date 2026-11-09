@@ -1,0 +1,11 @@
+{
+  "id": "q27",
+  "name": "Qwen3.8-27B",
+  "hf": "https://huggingface.co/Qwen/Qwen3.8-27B",
+  "summary": "语言模型，27B Dense，BF16 51.8 GB，上下文 256K，单流预估 30–40 tok/s。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": []
+}

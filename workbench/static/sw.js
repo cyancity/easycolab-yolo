@@ -1,6 +1,6 @@
 // 只缓存界面外壳，便于 PWA 安装和秒开；/api 与 /v1 永远走网络
-const SHELL = "easycolab-shell-v2";
-const FILES = ["/", "/app.css", "/tokens.css", "/app.js", "/api.js", "/util.js", "/icons.js", "/views.js", "/sheets.js", "/icon-192.png"];
+const SHELL = "easycolab-shell-v3";
+const FILES = ["/", "/app.css", "/tokens.css", "/app.js", "/api.js", "/util.js", "/icons.js", "/views.js", "/sheets.js", "/models.js", "/callcode.js", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

@@ -26,3 +26,4 @@ export const stopOrphan = (email, endpoint) => call("POST", "/api/orphans/stop",
 export const loginStart = () => call("POST", "/api/accounts/login/start");
 export const loginFinish = (pending_id, code) => call("POST", "/api/accounts/login/finish", { pending_id, code });
 export const gatewayKey = () => call("GET", "/api/gateway/key").then((r) => r.key);
+export const modelDocs = () => call("GET", "/api/model_docs");

@@ -1,0 +1,11 @@
+{
+  "id": "qimg",
+  "name": "Qwen-Image-2.1",
+  "hf": "https://huggingface.co/Qwen/Qwen-Image-2.1",
+  "summary": "图像模型，BF16 30.9 GB，约 4 秒一张。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": []
+}

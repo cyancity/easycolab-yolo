@@ -1,0 +1,11 @@
+{
+  "id": "flash-next",
+  "name": "Qwen3.8-Flash-Next",
+  "hf": "https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF",
+  "summary": "语言模型，180B MoE、6B 激活，UD-IQ4_XS 量化 93.7 GB，上下文 512K，单流预估 100–170 tok/s。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": []
+}

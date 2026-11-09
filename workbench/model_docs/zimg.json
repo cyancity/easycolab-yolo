@@ -1,0 +1,11 @@
+{
+  "id": "zimg",
+  "name": "Z-Image-Turbo",
+  "hf": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo",
+  "summary": "图像模型，BF16 30.6 GB，8 步出图。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": []
+}

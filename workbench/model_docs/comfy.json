@@ -1,0 +1,11 @@
+{
+  "id": "comfy",
+  "name": "ComfyUI",
+  "hf": "https://github.com/comfyanonymous/ComfyUI",
+  "summary": "节点式工作流，网页操作，预置 Wan2.2、LTX 2.3、Hunyuan 1.5。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": []
+}

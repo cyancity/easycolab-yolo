@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import accounts, catalog, deployments, gateway, monitor
+from . import accounts, catalog, deployments, gateway, model_docs, monitor
 from .keys import gateway_key, mask_key, redact
 from .paths import STATIC_DIR
 
@@ -131,6 +131,11 @@ def state():
     }
 
 
+@app.get("/api/model_docs")
+def get_model_docs():
+    return model_docs.get_docs()
+
+
 class DeployReq(BaseModel):
     model: str
     email: str
@@ -241,5 +246,6 @@ def boot():
     imported = accounts.import_legacy()
     if imported:
         print(f"已从旧客户端导入 {imported} 个账号")
+    model_docs.get_docs()  # 启动时读一遍，坏文件的告警直接出现在启动日志里
     deployments.load()
     monitor.start()

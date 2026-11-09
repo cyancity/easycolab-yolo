@@ -1,0 +1,11 @@
+{
+  "id": "q27gguf",
+  "name": "Qwen3.8-27B GGUF",
+  "hf": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
+  "summary": "语言模型，27B Dense，UD-Q4_K_M 量化 18.7 GB，上下文 256K，单流预估 55–80 tok/s。",
+  "facts": [],
+  "strengths": [],
+  "weaknesses": [],
+  "usage": [],
+  "templates": []
+}

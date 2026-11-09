@@ -8,6 +8,7 @@ REPO_ROOT = PKG_DIR.parent
 BRIDGE = REPO_ROOT / "colab_bridge.py"
 APP_PY = REPO_ROOT / "app.py"
 STATIC_DIR = PKG_DIR / "static"
+MODEL_DOCS_DIR = PKG_DIR / "model_docs"
 
 # 旧版桌面客户端的多账号库，首次启动时导入
 LEGACY_ACCOUNTS = Path.home() / ".config" / "colab-cli" / "accounts.json"

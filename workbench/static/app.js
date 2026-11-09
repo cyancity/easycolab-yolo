@@ -1,7 +1,9 @@
 // 工作台入口：渲染、轮询、事件
 import * as api from "./api.js";
 import { $, esc, icon, toast, ui } from "./util.js";
-import { viewAccounts, viewInstances, viewModels } from "./views.js";
+import { viewAccounts, viewInstances } from "./views.js";
+import { tplRef, viewModels } from "./models.js";
+import { callCode } from "./callcode.js";
 import { newLaunch, recommend, renderLaunch, renderLogin } from "./sheets.js";
 
 const TITLES = { instances: "实例", accounts: "账号", models: "模型" };
@@ -33,7 +35,14 @@ function render() {
   const cd = ui.data.cooldown?.left;
   $("#cooldown").hidden = !cd;
   if (cd) $("#cooldown").textContent = `分配暂停 ${Math.ceil(cd / 60)} 分钟 · ${ui.data.cooldown.why}`;
-  $("#view").innerHTML = { instances: viewInstances, accounts: viewAccounts, models: viewModels }[ui.view]();
+  // 内容没变就不动 DOM，保住滚动位置和用户正在选中的文字；变了再重绘并恢复滚动
+  const html = { instances: viewInstances, accounts: viewAccounts, models: viewModels }[ui.view]();
+  if (html !== render.html) {
+    const saved = [".list", ".detail"].map((s) => $(s)?.scrollTop || 0);
+    $("#view").innerHTML = render.html = html;
+    if (!ui.resetScroll) [".list", ".detail"].forEach((s, k) => { const el = $(s); if (el) el.scrollTop = saved[k]; });
+  }
+  ui.resetScroll = false;
   $("#sheet").innerHTML = renderLaunch() + renderLogin();
   $("#toast").innerHTML = ui.toast ? `<div class="toast ${ui.toastKind}" role="status">${esc(ui.toast)}</div>` : "";
   if (focused === "code") $("#code")?.focus();
@@ -42,9 +51,13 @@ document.addEventListener("rerender", render);
 
 async function poll() {
   try { await api.refresh(); } catch { ui.offline = true; }
+  if (ui.view === "models" || !ui.docs) await loadDocs();
   if (!document.querySelector(".sheet")) render();
   setTimeout(poll, document.hidden ? 10000 : 3000);
 }
+
+// 说明文件可能随时被替换，模型页打开时每次轮询顺带读一次
+const loadDocs = () => api.modelDocs().then((r) => { ui.docs = r.docs; }).catch(() => { ui.docs ||= {}; });
 
 async function copy(text) {
   await navigator.clipboard.writeText(text);
@@ -57,8 +70,17 @@ async function act(fn, ok) {
 }
 
 const handlers = {
-  nav: (t) => { ui.view = t.dataset.nav; },
-  inst: (t) => { ui.sel = t.dataset.inst; },
+  nav: (t) => { ui.view = t.dataset.nav; ui.resetScroll = true; },
+  inst: (t) => { ui.sel = t.dataset.inst; ui.resetScroll = true; },
+  model: (t) => { ui.msel = t.dataset.model; ui.resetScroll = true; },
+  modelDeploy: (t) => { newLaunch(t.dataset.modelDeploy); ui.launch.step = 2; recommend(); },
+  tplOpen: (t) => { const k = t.dataset.tplOpen; ui.tplOpen[k] = !ui.tplOpen[k]; },
+  copyPrompt: (t) => copy(tplRef(t.dataset.copyPrompt).tpl.prompt),
+  copyCode: (t) => act(async () => {
+    const { model, tpl } = tplRef(t.dataset.copyCode);
+    await navigator.clipboard.writeText(callCode(model, tpl, ui.data.gateway.base, await api.gatewayKey()));
+    toast("已复制，含完整密钥", "ok");
+  }),
   api: (t) => { ui.apiTab = t.dataset.api; },
   new: () => newLaunch(),
   pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.email = ui.launch.gpu = null; },

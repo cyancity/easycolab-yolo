@@ -1,4 +1,4 @@
-// 实例、账号、模型三个页面
+// 实例、账号两个页面和模型卡片（模型页见 models.js）
 import { dur, esc, icon, meter, num, pct, sparkline, ui } from "./util.js";
 
 const STATUS = {
@@ -156,14 +156,13 @@ export function viewAccounts() {
 }
 
 /* ---------- 模型 ---------- */
+export const modelChip = (m) => m.kind !== "语言" ? `<span class="chip">${esc(m.kind)}</span>`
+  : `<span class="chip ${m.slo === "ok" ? "ok" : "warn"}">${num(m.ctx, 0)}K · ${esc(m.tps)} tok/s</span>`;
+
 export function modelCard(m, pickable, picked) {
-  const chip = m.kind !== "语言" ? `<span class="chip">${esc(m.kind)}</span>`
-    : `<span class="chip ${m.slo === "ok" ? "ok" : "warn"}">${num(m.ctx, 0)}K · ${esc(m.tps)} tok/s</span>`;
   const attrs = pickable && m.ready ? `role="radio" tabindex="0" data-pick="${esc(m.id)}" aria-checked="${picked}"` : pickable ? `aria-disabled="true"` : "";
   return `<div class="panel mcard ${m.ready ? "" : "disabled"}" ${attrs}>
-    <h3>${esc(m.name)}</h3><div class="meta">${chip}<span class="chip">${esc(m.spec)}</span></div>
+    <h3>${esc(m.name)}</h3><div class="meta">${modelChip(m)}<span class="chip">${esc(m.spec)}</span></div>
     <span class="muted">${esc(m.size)}</span>
     ${m.ready ? "" : `<div class="foot"><span class="chip brand">${esc(m.pending)}</span></div>`}</div>`;
 }
-
-export const viewModels = () => `<div class="page"><div class="cards">${ui.data.models.map((m) => modelCard(m, false)).join("")}</div></div>`;

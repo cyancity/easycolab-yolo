@@ -29,6 +29,7 @@ export const meter = (p, cls = "") => `<span class="meter ${cls}"><i style="widt
 export const ui = {
   data: null, view: "instances", sel: null, apiTab: "openai",
   launch: null, login: null, toast: "", toastKind: "",
+  docs: null, msel: null, tplOpen: {}, resetScroll: false,
 };
 
 export function toast(msg, kind = "") {
