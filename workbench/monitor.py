@@ -97,12 +97,19 @@ def _poll(d: dict):
 
 
 def _reclaimed(d: dict) -> bool:
-    """实例长时间无响应时，确认 Colab 是否已经回收"""
-    ep = deployments.endpoint_of(d)
+    """实例长时间无响应时，确认 Colab 是否已经回收。
+    本地 session 不见了也算：keepalive 里 colab-cli 发现云端没有这台会直接 prune (2026-11-10 G4 实测)，
+    以前这里拿不到 endpoint 就返回 False，部署会一直停在运行中"""
     cache = ACCOUNT_CACHE.get(d["email"], {})
-    if not ep or cache.get("assignments") is None:
+    if cache.get("assignments") is None:
         return False
-    return all(a.get("endpoint") != ep for a in cache["assignments"])
+    try:
+        s = accounts.sessions_store(d["email"]).get(d["session"])
+    except Exception:  # noqa: BLE001
+        return False
+    if not s:
+        return True
+    return all(a.get("endpoint") != s.endpoint for a in cache["assignments"])
 
 
 def _keepalive(email: str):
