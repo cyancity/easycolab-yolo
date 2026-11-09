@@ -1,4 +1,5 @@
 """GPU 型号解析、资格预检、分配实例与容器就绪探测。"""
+import json
 import os
 import time
 import uuid
@@ -95,6 +96,26 @@ def _explain_assign_error(accel: Accelerator, err: Exception) -> str:
     return f"申请 {accel.value} 失败：{err}"
 
 
+def _record_assign_error(accel: Accelerator, shape, err: Exception):
+    """Colab 拒绝分配时，把原始响应追加到本账号的 assign-diag.jsonl，供工作台排查；不改命令行输出"""
+    try:
+        resp = getattr(err, "response", None)
+        body = getattr(err, "response_body", None)
+        if body is None and resp is not None:
+            body = getattr(resp, "text", "")
+        headers = {k: v for k, v in (getattr(resp, "headers", None) or {}).items()
+                   if k.lower() in ("content-type", "retry-after") or (k.lower().startswith("x-")
+                   and not any(w in k.lower() for w in ("token", "cookie", "auth")))}
+        rec = {"at": int(time.time()), "accelerator": accel.value, "shape": getattr(shape, "name", None),
+               "status": getattr(resp, "status_code", None), "headers": headers, "body": str(body or "")[:2000]}
+        path = os.path.join(os.path.expanduser("~"), ".config", "colab-cli", "assign-diag.jsonl")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 def _allocate_fresh_session(session_name: str, gpu_type: str) -> SessionState:
     accel = _resolve_gpu_accel(gpu_type)
     _check_gpu_eligible(accel)
@@ -116,6 +137,7 @@ def _allocate_fresh_session(session_name: str, gpu_type: str) -> SessionState:
     except TooManyAssignmentsError:
         raise AllocationError("Colab 拒绝分配（HTTP 412）：账号下活动实例过多或触发了临时用量限制，先释放其他实例再试。")
     except ColabRequestError as req_err:
+        _record_assign_error(accel, shape, req_err)
         raise AllocationError(_explain_assign_error(accel, req_err))
     if isinstance(res, PostAssignmentResponse):
         token = res.runtime_proxy_info.token

@@ -4,12 +4,14 @@ fail = {kind, title, hint, links:[{label,url}], actions:[...], log:[...]}
 actions 取值：redeploy 重新部署、switch 换卡或换账号、release_orphans 释放未纳管实例、relogin 重新登录、logs 查看失败前日志。
 链接只放行 https，URL 里除账号邮箱外不带任何东西；邮箱只用于让 Colab 打开对应的 Google 账号。
 """
+import json
 import re
 from typing import List, Optional
 from urllib.parse import quote
 
 import requests
 
+from . import accounts
 from .keys import redact
 
 COLAB = "https://colab.research.google.com/"
@@ -113,9 +115,23 @@ def classify(d: dict, hf: str = "", orphans: int = 0, cu: Optional[float] = None
             "log": [redact(x) for x in log], "orphans": orphans if kind == "too_many" else 0}
 
 
+def _assign_diag(d: dict) -> Optional[List[str]]:
+    """还没拿到实例（分配就失败）时，读桥接记下的 Colab 原始拒绝响应"""
+    try:
+        path = accounts.cli_dir(accounts.home_of(d["email"])) / "assign-diag.jsonl"
+        rec = json.loads(path.read_text(encoding="utf-8").strip().splitlines()[-1])
+    except Exception:  # noqa: BLE001 没有记录就算了
+        return None
+    if rec.get("at", 0) < d.get("created_at", 0) - 5:
+        return None  # 是更早那次部署留下的
+    head = f"Colab 分配接口返回 HTTP {rec.get('status')}（{rec.get('accelerator')}，shape={rec.get('shape')}）"
+    extra = [f"{k}: {v}" for k, v in (rec.get("headers") or {}).items()]
+    return [head, *extra, *[x for x in str(rec.get("body") or "").splitlines() if x.strip()]]
+
+
 def capture_log(d: dict) -> List[str]:
     """失败后、释放实例前取一份实例日志。先问实例，取不到就用最近一次轮询缓存的；最长约 8 s"""
-    lines = None
+    lines = None if d.get("url") else _assign_diag(d)
     if d.get("url"):
         try:
             r = requests.get(d["url"].rstrip("/") + "/minimax_api/status", timeout=(3, 5))
