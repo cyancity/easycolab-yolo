@@ -63,6 +63,7 @@ from windows_app.models import (
     get_local_save_dir,
     is_en,
     mask_email_display,
+    mask_secret_display,
     open_path_in_os,
     snap_video_frames,
     tr,
@@ -462,7 +463,7 @@ class EasyColabMainWindow(QMainWindow):
         url_row.addWidget(self.url_input, 1)
 
         self.mask_eye_btn = QPushButton(tr("打码", "Mask"))
-        self.mask_eye_btn.setFixedWidth(58)
+        self.mask_eye_btn.setMinimumWidth(58)  # 打开后文案变"已打码"三字，固定宽度会裁掉首字
         self.mask_eye_btn.setToolTip(
             tr(
                 "录屏/截图防泄密打码开关：隐藏公网隧道域名与账号邮箱",
@@ -2878,6 +2879,8 @@ class EasyColabMainWindow(QMainWindow):
         oai_base_real = f"{base_host}/v1"
         oai_base_shown = f"{shown_host}/v1"
         key = self.vm.api_access_key if self.vm.api_key_enabled else "sk-no-key-required"
+        # 展示区与复制区的分离：_shown 变体在打码状态下必须隐藏真实 key，复制按钮仍取真值
+        key_shown = mask_secret_display(key, self.vm.mask_server_url)
 
         if self.vm.selected_model_id == "qwen38_27b_gguf":
             repo = "unsloth/Qwen3.8-27B-GGUF"
@@ -2893,10 +2896,10 @@ class EasyColabMainWindow(QMainWindow):
         ant_curl_msg = tr("分析 Rust 所有权机制的核心优势", "Explain the core advantages of Rust ownership")
         ps_comment = tr("# PowerShell (Windows 推荐)", "# PowerShell (Recommended on Windows)")
 
-        def make_py(b: str) -> str:
+        def make_py(b: str, k: str) -> str:
             return (
                 "from openai import OpenAI\n\n"
-                f'client = OpenAI(base_url="{b}", api_key="{key}")\n'
+                f'client = OpenAI(base_url="{b}", api_key="{k}")\n'
                 "stream = client.chat.completions.create(\n"
                 f'    model="{repo}",\n'
                 f'    messages=[{{"role": "user", "content": "{py_msg}"}}],\n'
@@ -2931,10 +2934,10 @@ class EasyColabMainWindow(QMainWindow):
         )
         claude_ps_shown = (
             f'{ps_comment}\n$env:ANTHROPIC_BASE_URL="{shown_host}"\n'
-            f'$env:ANTHROPIC_API_KEY="{key}"\n'
+            f'$env:ANTHROPIC_API_KEY="{key_shown}"\n'
             f'$env:ANTHROPIC_MODEL="{repo}"\n\n'
             f'# Git Bash / WSL\nexport ANTHROPIC_BASE_URL="{shown_host}"\n'
-            f'export ANTHROPIC_API_KEY="{key}"\n'
+            f'export ANTHROPIC_API_KEY="{key_shown}"\n'
             f'export ANTHROPIC_MODEL="{repo}"'
         )
         claude_sh = (
@@ -2948,8 +2951,8 @@ class EasyColabMainWindow(QMainWindow):
             "oai_base_shown": oai_base_shown,
             "oai_chat": f"{oai_base_real}/chat/completions",
             "oai_chat_shown": f"{oai_base_shown}/chat/completions",
-            "oai_py": make_py(oai_base_real),
-            "oai_py_shown": make_py(oai_base_shown),
+            "oai_py": make_py(oai_base_real, key),
+            "oai_py_shown": make_py(oai_base_shown, key_shown),
             "oai_curl": oai_curl,
             "ant_base": base_host,
             "ant_base_shown": shown_host,
@@ -2968,6 +2971,10 @@ class EasyColabMainWindow(QMainWindow):
         )
         self.api_auth_chk.setChecked(self.vm.api_key_enabled)
         self.api_key_row_w.setVisible(self.vm.api_key_enabled)
+        # 打码状态下 key 输入框同步切密码回显，防止录屏截图泄露
+        self.api_key_input.setEchoMode(
+            QLineEdit.EchoMode.Password if self.vm.mask_server_url else QLineEdit.EchoMode.Normal
+        )
         if not self.api_key_input.hasFocus():
             self.api_key_input.setText(self.vm.api_access_key)
 
