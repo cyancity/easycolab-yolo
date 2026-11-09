@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import accounts, catalog, deployments, failures, gateway, model_docs, monitor, waitlist
+from . import accounts, catalog, deployments, failures, gateway, model_docs, monitor, prefs, waitlist
 from .keys import gateway_key, mask_key, redact
 from .paths import STATIC_DIR
 
@@ -140,12 +140,24 @@ def state():
     for o in orphans:
         by_email[o["email"]] = by_email.get(o["email"], 0) + 1
     return {
-        "slo": catalog.SLO, "gpus": catalog.GPUS, "models": catalog.public_models(),
+        "slo": catalog.SLO, "gpus": catalog.GPUS, "prefs": prefs.get(), "models": catalog.public_models(),
         "accounts": [_account_view(e) for e in accounts.emails()],
         "instances": [_instance_view(d, by_email) for d in recent] + orphans,
         "gateway": {"base": f"http://127.0.0.1:{PORT}/v1", "key_masked": mask_key(gateway_key())},
         "cooldown": deployments.global_cooldown(),
     }
+
+
+class PrefsReq(BaseModel):
+    gpu: str
+
+
+@app.post("/api/prefs")
+def set_prefs(req: PrefsReq):
+    gpu = req.gpu.strip().upper()
+    if gpu not in {g["id"] for g in catalog.GPUS}:
+        raise HTTPException(400, f"不支持的显卡 {req.gpu}")
+    return prefs.set_gpu(gpu)
 
 
 @app.get("/api/model_docs")

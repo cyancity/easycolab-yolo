@@ -36,7 +36,7 @@ function cellState(m, a, g) {
   return null;
 }
 
-// 打分：达标 +100，推荐 +50，显存占用 /10，余额（上限 500）/100
+// 打分：达标 +100，推荐 +50，首选显卡 +60，显存占用 /10，余额（上限 500）/100
 function ranked(modelId) {
   const m = modelOf(modelId), cands = [];
   if (!m) return cands;
@@ -45,7 +45,7 @@ function ranked(modelId) {
     for (const g of ui.data.gpus) {
       if (cellState(m, a, g)) continue;
       const f = m.fit[g.id];
-      cands.push({ a, g, m, score: (f.cls === "good" ? 100 : 0) + (f.rec ? 50 : 0) + f.fill / 10 + Math.min(a.cu || 0, 500) / 100 });
+      cands.push({ a, g, m, score: (f.cls === "good" ? 100 : 0) + (f.rec ? 50 : 0) + (g.id === ui.data.prefs?.gpu ? 60 : 0) + f.fill / 10 + Math.min(a.cu || 0, 500) / 100 });
     }
   }
   return cands.sort((x, y) => y.score - x.score);
@@ -104,11 +104,19 @@ function cell(m, a, g) {
     <b>${esc(f.tps)}</b><span>显存 ${num(f.fill, 0)}%</span>${f.note ? `<small class="ellipsis">${esc(f.note)}</small>` : ""}</button></td>`;
 }
 
+// 列头是按钮：点一下设为首选显卡
+function gpuHead(g) {
+  const on = ui.data.prefs?.gpu === g.id;
+  return `<th scope="col" data-key="gh-${esc(g.id)}"><button class="sh-gpu" data-prefer-gpu="${esc(g.id)}" aria-pressed="${on}" aria-label="设为首选显卡 ${esc(g.id)}">
+    <span class="sh-gpu-t"><b>${esc(g.id)}</b> <span class="muted">${num(g.vram, 0)}GB</span>${on ? `<span class="chip brand">首选</span>` : ""}</span>
+    ${g.name ? `<small class="subtle ellipsis">${esc(g.name)}</small>` : ""}</button></th>`;
+}
+
 function step2() {
   const m = modelOf(ui.launch.model);
   const accts = ui.data.accounts.filter((a) => a.state !== "loading" && a.state !== "error");
   if (!accts.length) return `<div class="empty">${icon("users")}<p>没有可用账号，先添加一个</p></div>`;
-  const head = `<tr><th></th>${ui.data.gpus.map((g) => `<th scope="col" data-key="gh-${esc(g.id)}"><b>${esc(g.id)}</b> <span class="muted">${num(g.vram, 0)}GB</span></th>`).join("")}</tr>`;
+  const head = `<tr><th></th>${ui.data.gpus.map(gpuHead).join("")}</tr>`;
   const rows = accts.map((a) => `<tr data-key="row-${esc(a.email)}">
     <th scope="row" class="sh-rowh"><div class="sh-who"><b class="ellipsis">${esc(a.label)}</b><span class="chip">${esc(a.tier || "")}</span></div>
       <span class="muted">${a.cu == null ? "—" : `${Math.round(a.cu).toLocaleString("en-US")} CU`}</span></th>
@@ -124,7 +132,7 @@ function step3() {
   const L = ui.launch, m = modelOf(L.model), a = acctOf(L.email), f = m.fit[L.gpu];
   const llm = m.kind === "语言", s = ui.data.slo;
   const ctx = L.ctx ?? m.load?.context_length;
-  const seg = CTX.filter(([v]) => v <= (m.ctx || 256) * 1024)
+  const seg = CTX.filter(([v]) => v <= (m.ctx_max || m.ctx || 256) * 1024)
     .map(([v, l]) => `<button data-ctx="${v}" aria-pressed="${ctx === v}">${l}</button>`).join("");
   const lowCtx = llm && ctx != null && ctx / 1024 < s.ctxMin;
   return `<div class="sh-sum panel"><div class="kv">

@@ -9,23 +9,28 @@ export const CATALOG = {
   "gpus": [
     {
       "id": "T4",
-      "vram": 16
+      "vram": 16,
+      "name": "Tesla T4"
     },
     {
       "id": "L4",
-      "vram": 24
+      "vram": 24,
+      "name": "NVIDIA L4"
     },
     {
       "id": "A100",
-      "vram": 80
+      "vram": 40,
+      "name": "A100 SXM4 40GB"
     },
     {
       "id": "H100",
-      "vram": 80
+      "vram": 80,
+      "name": "H100 80GB"
     },
     {
       "id": "G4",
-      "vram": 96
+      "vram": 96,
+      "name": "RTX PRO 6000 Blackwell"
     }
   ],
   "models": [
@@ -46,12 +51,6 @@ export const CATALOG = {
         "context_length": 524288
       },
       "fit": {
-        "A100": {
-          "tps": "≈100–150",
-          "fill": 95,
-          "cls": "low",
-          "note": "仅 80GB 版"
-        },
         "H100": {
           "tps": "≈150–220",
           "fill": 92,
@@ -59,10 +58,10 @@ export const CATALOG = {
           "note": "KV q8"
         },
         "G4": {
-          "tps": "100 / 170",
-          "fill": 86,
+          "tps": "108–136",
+          "fill": 85,
           "cls": "good",
-          "note": "MTP 实测",
+          "note": "2026-11-10 实测 · MTP",
           "rec": true
         }
       }

@@ -31,3 +31,4 @@ ACCOUNTS_DIR = DATA_DIR / "accounts"
 ACCOUNTS_DIR.mkdir(exist_ok=True)
 DEPLOYMENTS_FILE = DATA_DIR / "deployments.json"
 GATEWAY_FILE = DATA_DIR / "gateway.json"
+PREFS_FILE = DATA_DIR / "prefs.json"

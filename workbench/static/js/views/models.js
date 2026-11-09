@@ -27,7 +27,7 @@ function fitTable(m) {
   const fit = m.fit || {}, llm = m.kind === "语言";
   const rows = ui.data.gpus.map((g) => {
     const f = fit[g.id];
-    const gpu = `<th scope="row"><b>${esc(g.id)}</b> <span class="muted">${esc(g.vram)}GB</span></th>`;
+    const gpu = `<th scope="row"><b>${esc(g.id)}</b> <span class="muted">${esc(g.vram)}GB</span>${g.name ? ` <span class="subtle">${esc(g.name)}</span>` : ""}${ui.data.prefs?.gpu === g.id ? ` <span class="chip brand">首选</span>` : ""}</th>`;
     if (!f) return `<tr class="is-off" data-key="fit-${esc(g.id)}">${gpu}<td colspan="3" class="subtle">放不下</td></tr>`;
     const good = f.cls === "good";
     return `<tr data-key="fit-${esc(g.id)}">${gpu}

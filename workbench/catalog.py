@@ -1,14 +1,18 @@
 """可部署的模型、显卡和达标线。fit 里的速度与显存占用是预估，部署后以自测为准。"""
 
-SLO = {"ctxMin": 300, "tpsMin": 100, "tpsGoal": 150, "fillGoal": 75}
+# 上下文线 256K = Flash-Next 原生 262,144，不开 YaRN；负责人 2026-11-10 定
+SLO = {"ctxMin": 256, "tpsMin": 100, "tpsGoal": 150, "fillGoal": 75}
+
+# 偏好的显卡：部署推荐会给它加分，可在部署弹层里改，存在用户数据目录的 prefs.json
+PREFER_GPU_DEFAULT = "G4"
 
 GPUS = [
-    {"id": "T4", "vram": 16},
-    {"id": "L4", "vram": 24},
+    {"id": "T4", "vram": 16, "name": "Tesla T4"},
+    {"id": "L4", "vram": 24, "name": "NVIDIA L4"},
     # Colab 的 A100 是 40GB 版：2026-11-10 Ultra 账号实测 GPU 39 GiB，Flash-Next 预检需 75.58 GiB 载入失败
-    {"id": "A100", "vram": 40},
-    {"id": "H100", "vram": 80},
-    {"id": "G4", "vram": 96},
+    {"id": "A100", "vram": 40, "name": "A100 SXM4 40GB"},
+    {"id": "H100", "vram": 80, "name": "H100 80GB"},
+    {"id": "G4", "vram": 96, "name": "RTX PRO 6000 Blackwell"},
 ]
 
 
@@ -20,8 +24,8 @@ MODELS = [
     {
         "id": "flash-next", "app_id": "qwen38_flash_next", "name": "Qwen3.8-Flash-Next", "kind": "语言",
         "runtime": "llama",
-        "size": "UD-IQ4_XS · 93.7 GB", "spec": "180B MoE · 6B 激活", "ctx": 512, "tps": "108–136", "slo": "ok",
-        "ready": True, "load": {"precision_mode": "bf16", "context_length": 524288},
+        "size": "UD-IQ4_XS · 93.7 GB", "spec": "180B MoE · 6B 激活", "ctx": 256, "ctx_max": 512, "tps": "108–136", "slo": "ok",
+        "ready": True, "load": {"precision_mode": "bf16", "context_length": 262144},
         "fit": {"H100": _f("≈150–220", 92, "good", note="KV q8"),
                 "G4": _f("108–136", 85, "good", note="2026-11-10 实测 · MTP", rec=True)},
     },

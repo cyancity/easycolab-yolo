@@ -23,6 +23,7 @@ export async function refresh() {
 }
 
 export const deploy = (model, email, gpu, params) => call("POST", "/api/deploy", { model, email, gpu, params });
+export const setPrefs = (gpu) => call("POST", "/api/prefs", { gpu });
 export const stopInstance = (id) => call("POST", `/api/instances/${id}/stop`);
 export const waitInstance = (id) => call("POST", `/api/instances/${id}/wait`);
 export const rebench = (id) => call("POST", `/api/instances/${id}/bench`);

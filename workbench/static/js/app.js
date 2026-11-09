@@ -157,6 +157,13 @@ const handlers = {
   pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.email = ui.launch.gpu = ui.launch.rec = ui.launch.avoid = null; },
   cell: (t) => { [ui.launch.email, ui.launch.gpu] = t.dataset.cell.split("|"); },
   ctx: (t) => { ui.launch.ctx = Number(t.dataset.ctx); },
+  preferGpu: (t) => {
+    const gpu = t.dataset.preferGpu, prev = ui.data.prefs;
+    if (prev?.gpu === gpu) return;
+    ui.data.prefs = { gpu };
+    recommend();
+    act(async () => { try { await api.setPrefs(gpu); } catch (e) { ui.data.prefs = prev; recommend(); throw e; } });
+  },
   next: () => { direct(ui.launch.step + 1); if (ui.launch.step === 2 && !ui.launch.gpu) recommend(); },
   back: () => direct(ui.launch.step - 1, -1),
   close: (t, e) => { if (e.target === t || t.tagName === "BUTTON") closeSheets(); else return false; },

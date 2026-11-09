@@ -17,6 +17,7 @@ class HttpError extends Error {
 
 let S = buildScenario(scenario());
 const jobs = new Map(), pending = new Map();
+const prefs = { gpu: "G4" };
 let jobN = 0, acctN = 0;
 
 /* ---------- 生命周期 ---------- */
@@ -113,7 +114,7 @@ function stateBody() {
     };
   });
   return {
-    accounts, instances, gateway: S.gateway, cooldown: S.cooldown, slo: CATALOG.slo, gpus: CATALOG.gpus, models: CATALOG.models,
+    accounts, instances, gateway: S.gateway, cooldown: S.cooldown, slo: CATALOG.slo, gpus: CATALOG.gpus, prefs: { ...prefs }, models: CATALOG.models,
   };
 }
 
@@ -198,6 +199,12 @@ function loginFinish({ pending_id, code }) {
 const ROUTES = [
   ["GET", /^\/api\/state$/, () => stateBody()],
   ["POST", /^\/api\/deploy$/, (m, b) => deploy(b)],
+  ["POST", /^\/api\/prefs$/, (m, b) => {
+    const gpu = String(b.gpu || "").toUpperCase();
+    if (!CATALOG.gpus.some((g) => g.id === gpu)) throw new HttpError(400, `不支持的显卡 ${b.gpu}`);
+    prefs.gpu = gpu;
+    return { ...prefs };
+  }],
   ["POST", /^\/api\/instances\/([^/]+)\/stop$/, (m) => stop(m[1])],
   ["POST", /^\/api\/instances\/([^/]+)\/wait$/, (m) => wait(m[1])],
   ["POST", /^\/api\/instances\/([^/]+)\/bench$/, (m) => { find(m[1])._benchAt = Date.now() + 1500; return { ok: true }; }],
