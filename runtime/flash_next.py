@@ -137,16 +137,15 @@ def weight_files(quant: str, mtp: bool, mtp_variant: str = "full", spec: str = D
 
 
 def plan(gpu_vram_gb: float, ctx_k: int, quant: str, kv: str, mtp: bool, mtp_variant: str = "full",
-         spec: str = DEFAULT_SPEC, engram_gpu: bool = False) -> dict:
-    """VRAM budget in GiB.  Weights are file sizes (exact); everything else is an estimate.
-    engram_gpu: also load the engram shard into VRAM (build_command then drops the -ot flag)."""
+         spec: str = DEFAULT_SPEC) -> dict:
+    """VRAM budget in GiB.  Weights are file sizes (exact); everything else is an estimate."""
     if kv not in KV_BYTES:
         raise ValueError(f"unknown kv type {kv!r}; choose from {sorted(KV_BYTES)}")
     sp = _spec(spec)
     a = sp["arch"]
     shards = _shards(quant, spec)
     engram_idx = sp["quants"][quant][1]
-    engram = shards[engram_idx - 1][1] if engram_idx and not engram_gpu else 0
+    engram = shards[engram_idx - 1][1] if engram_idx else 0
     weights_gpu = (sum(s for _, s in shards) - engram) / GIB
     tokens = ctx_k * 1024
     # K + V elements per token per full-attention layer, plus the assumed indexer key cache
@@ -190,7 +189,7 @@ def plan(gpu_vram_gb: float, ctx_k: int, quant: str, kv: str, mtp: bool, mtp_var
         notes.append("enough spare VRAM to put the engram table on the GPU as well (drop the -ot flag)")
     return {
         "gpu_vram_gib": gpu_vram_gb, "ctx_k": ctx_k, "ctx_tokens": tokens, "quant": quant, "kv": kv, "mtp": mtp,
-        "engram_gpu": engram_gpu, "components_gib": {k: round(v, 2) for k, v in parts.items()},
+        "components_gib": {k: round(v, 2) for k, v in parts.items()},
         "used_gib": round(used, 2), "fill_pct": round(fill * 100, 1),
         "fits": used <= gpu_vram_gb * (1 - HEADROOM_FRAC), "meets_vram_target": fill >= VRAM_TARGET,
         "engram_cpu_gib": round(engram / GIB, 2), "notes": notes,
@@ -361,15 +360,11 @@ def _ensure_weights(root: str, quant: str, mtp: bool, mtp_variant: str, spec: st
 # --- command / process ------------------------------------------------------------------------------------
 def build_command(paths: dict, ctx_k: int, kv: str, mtp: bool, port: int, draft_n: int | None = None,
                   host: str = "127.0.0.1", binary: str = "llama-server", threads: int | None = None,
-                  spec: str = DEFAULT_SPEC, engram_gpu: bool = False) -> list[str]:
+                  spec: str = DEFAULT_SPEC) -> list[str]:
     sp = _spec(spec)
     tokens = ctx_k * 1024
-    extra = list(sp["extra_args"])
-    if engram_gpu and "-ot" in extra:  # the -ot rule is what keeps the engram table in CPU RAM
-        i = extra.index("-ot")
-        del extra[i:i + 2]
     cmd = [binary, "-m", paths["model"], "--alias", sp["alias"], "--host", host, "--port", str(port),
-           "-c", str(tokens), "-np", "1", "-ngl", "999", *extra,
+           "-c", str(tokens), "-np", "1", "-ngl", "999", *sp["extra_args"],
            "-fa", "on", "-ctk", kv, "-ctv", kv, "-b", "2048", "-ub", "1024",
            "--jinja", "--metrics", *sp["sampling"]]
     if threads:
@@ -458,7 +453,6 @@ def main() -> int:
     ap.add_argument("--mtp", action="store_true")
     ap.add_argument("--mtp-variant", default="full")
     ap.add_argument("--draft-n", type=int, help="default per model")
-    ap.add_argument("--engram-gpu", action="store_true", help="load the engram shard into VRAM too (drops -ot)")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--llama-source", default="fork", choices=sorted(SOURCES))
     ap.add_argument("--timeout", type=float, default=1800)
@@ -470,7 +464,7 @@ def main() -> int:
         ap.error(f"--quant must be one of {sorted(sp['quants'])} for {a.model}")
 
     vram = a.gpu_vram if a.gpu_vram else detect_vram_gib()
-    p = plan(vram, ctx, quant, kv, a.mtp, a.mtp_variant, a.model, a.engram_gpu)
+    p = plan(vram, ctx, quant, kv, a.mtp, a.mtp_variant, a.model)
     if a.dry_run:
         root = os.path.join(a.cache, sp["repo"])
         files = weight_files(quant, a.mtp, a.mtp_variant, a.model)
@@ -486,15 +480,14 @@ def main() -> int:
         print(json.dumps({"hf_repo": sp["repo"], "llama_cpp": build,
                           "files": [{"path": r, "bytes": s} for r, s in files],
                           "total_gb": round(sum(s for _, s in files) / 1e9, 1)}, indent=2))
-        print(" ".join(build_command(paths, ctx, kv, a.mtp, a.port, a.draft_n, spec=a.model, engram_gpu=a.engram_gpu)))
+        print(" ".join(build_command(paths, ctx, kv, a.mtp, a.port, a.draft_n, spec=a.model)))
         return 0
     if not p["fits"]:
         log("plan says it does not fit: " + "; ".join(p["notes"]))
         return 2
     exe = ensure_llama_server(a.cache, a.llama_source, a.sm)
     paths = ensure_weights(a.cache, quant, a.mtp, a.mtp_variant, spec=a.model)
-    proc = launch(build_command(paths, ctx, kv, a.mtp, a.port, a.draft_n, binary=exe, threads=os.cpu_count(), spec=a.model,
-                                engram_gpu=a.engram_gpu))
+    proc = launch(build_command(paths, ctx, kv, a.mtp, a.port, a.draft_n, binary=exe, threads=os.cpu_count(), spec=a.model))
     if not wait_ready(a.port, a.timeout, proc):
         log("not ready; see /tmp/llama-server.log")
         proc.terminate()
