@@ -67,7 +67,7 @@ function headroom(i) {
   if (isLLM(i) && i.bench?.tps && i.bench.tps < s.tpsMin) {
     reasons.push(`单流 ${num(i.bench.tps, 0)} tok/s 低于 ${num(s.tpsMin, 0)}`);
     if (i.model !== "flash-next" && ui.data.models.some((m) => m.id === "flash-next" && m.ready)) {
-      tips.push({ what: "换 Qwen3.8-Flash-Next", why: "MoE 每个 token 只算 6B 参数，G4 实测 100 / 170（MTP）tok/s；运行时下一期上线",
+      tips.push({ what: "换 Qwen3.8-Flash-Next", why: "MoE 每个 token 只算 6B 参数，G4 实测 108–136 tok/s（MTP）",
         act: `<button class="btn primary sm" data-quick="flash-next">${icon("rocket")}换 Qwen3.8-Flash-Next</button>` });
     }
   }

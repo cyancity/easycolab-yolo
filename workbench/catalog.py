@@ -20,10 +20,10 @@ MODELS = [
     {
         "id": "flash-next", "app_id": "qwen38_flash_next", "name": "Qwen3.8-Flash-Next", "kind": "语言",
         "runtime": "llama",
-        "size": "UD-IQ4_XS · 93.7 GB", "spec": "180B MoE · 6B 激活", "ctx": 512, "tps": "100–170", "slo": "ok",
+        "size": "UD-IQ4_XS · 93.7 GB", "spec": "180B MoE · 6B 激活", "ctx": 512, "tps": "108–136", "slo": "ok",
         "ready": True, "load": {"precision_mode": "bf16", "context_length": 524288},
         "fit": {"H100": _f("≈150–220", 92, "good", note="KV q8"),
-                "G4": _f("100 / 170", 86, "good", note="MTP 实测", rec=True)},
+                "G4": _f("108–136", 85, "good", note="2026-11-10 实测 · MTP", rec=True)},
     },
     # 链路冒烟：与 Flash-Next 同一套 llama-server 链路 (编译、下载、启动参数、就绪、转发、指标、卸载)，T4 上跑通后再上 A100/H100 测速。
     # fit 的速度和占用是预估 (4B Q4 约 2.8 GB 权重 + 128K q8 KV + MTP)，只用于链路验证，不对应达标线。
