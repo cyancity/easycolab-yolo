@@ -38,3 +38,6 @@ models/
 *.wav
 *.gguf
 *.safetensors
+
+# Local tooling (launch configs, worktrees)
+.claude/

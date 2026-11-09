@@ -35,6 +35,17 @@
 
 ## 快速开始
 
+### 本机多账号工作台（推荐）
+
+```bash
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt   # macOS / Linux 用 .venv/bin/python
+.venv/Scripts/python -m workbench
+```
+
+浏览器打开 `http://127.0.0.1:8790/`，在 Chrome 地址栏点「安装」即成桌面应用。账号页添加 Google 账号（旧客户端登录过的账号会自动导入），新建部署时按「账号 × 显卡」矩阵选机器。外部 agent 统一调用 `http://127.0.0.1:8790/v1`（OpenAI / Anthropic 协议），密钥在实例页复制。
+
+
 ### 系统要求
 - **操作系统**：
   - **macOS**：macOS 13.0 (Ventura) 或更高版本（推荐 Apple Silicon / macOS Sonoma & Sequoia）

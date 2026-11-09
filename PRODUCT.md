@@ -1,4 +1,4 @@
-# EasyColab 工作台（草案，待确认）
+# EasyColab 工作台
 
 ## 目的
 给一个人管理 5 个 Google 账号（1 Ultra、1 付费 AI Pro、3 Jio AI Pro）的 Colab GPU，把开源模型部署成外部 agent 直接调用的 API，并把显卡吃满。工作台只负责部署、监控和压榨性能，不做模型试玩。
@@ -33,8 +33,9 @@
 - 「TPS」指单流解码速度，并发总吞吐另列。
 - 300K 以上上下文对 Flash-Next 需要 YaRN（原生 256K），按 ×2 到 512K。
 - Qwen3.8-27B（Dense）预估达不到 100 tok/s，只保留为不达标选项。
-- 「在 Colab 查看」需要先验证可行性：API 分配的实例不绑定笔记本，可能改为工作台内嵌远端日志。
+- 不做「在 Colab 网页查看」：官方 `colab url` 打开的是空白笔记本，点连接会再分一台 GPU（google-colab-cli#24）。改为工作台内实时显示远端输出；之后再加经隧道暴露、带 token 的 JupyterLab 链接。
 - 两个 Jio 账号目前 0 CU、只有 T4（2026-11-10 实测），第三个未登录。
 
 ## 设计
-B 端工作台预设（`prototype/workbench/tokens.css`），深色默认，支持浅色。原型：`prototype/workbench/`，视口 1440×900。
+本机网页，Chrome 安装为 PWA。B 端工作台预设（`workbench/static/tokens.css`），深色默认，支持浅色，视口 1440×900。
+组件不用 shadcn/Tailwind：单用户本地工具，由 Python 服务直接提供静态文件，免去 Node 构建链；原型代码直接沿用。
