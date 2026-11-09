@@ -93,7 +93,7 @@ def flash_next_download_core(hf_token: str = "", model_id: str = FLASH_NEXT_ID) 
 
 def flash_next_load_core(options: Optional[Dict[str, Any]] = None, context_length: Optional[int] = None,
                          model_id: str = FLASH_NEXT_ID) -> Tuple[bool, str]:
-    """options: quant / kv / mtp (True) / draft_n，默认值与上下文默认/上限见 llama_specs.SPECS；不写入 QWEN_CONTEXT_LENGTH"""
+    """options: quant / kv / mtp (True) / draft_n / engram_gpu (False，N-gram 表也进显存)，默认值与上下文默认/上限见 llama_specs.SPECS；不写入 QWEN_CONTEXT_LENGTH"""
     touch_activity()
     if MODEL_DOWNLOAD_STATE["is_loading_vram"]:
         return False, "模型正在加载进显存中，请稍候..."
@@ -110,7 +110,8 @@ def flash_next_load_core(options: Optional[Dict[str, Any]] = None, context_lengt
         quant, kv, mtp = str(o.get("quant") or ls["default_quant"]), str(o.get("kv") or ls["default_kv"]), bool(o.get("mtp", True))
         ctx = max(8192, min(ls["max_ctx_k"] * 1024, int(context_length or o.get("context_length") or ls["default_ctx_k"] * 1024)))
         total_gb = torch.cuda.mem_get_info("cuda")[1] / (1024 ** 3)
-        plan = fn.plan(total_gb, ctx // 1024, quant, kv, mtp, spec=model_id)
+        engram_gpu = bool(o.get("engram_gpu"))
+        plan = fn.plan(total_gb, ctx // 1024, quant, kv, mtp, spec=model_id, engram_gpu=engram_gpu)
         if plan["used_gib"] > total_gb:
             raise RuntimeError(f"显存不足: 预估需 {plan['used_gib']} GiB > GPU {total_gb:.0f} GiB，请降低上下文或换小量化")
         exe = fn.ensure_llama_server(MODEL_BASE_ROOT)
@@ -123,7 +124,8 @@ def flash_next_load_core(options: Optional[Dict[str, Any]] = None, context_lengt
             evicted = _ensure_vram_for_new_model_locked(model_id, min(plan["used_gib"], total_gb - 1.2))
             free_before = torch.cuda.mem_get_info("cuda")[0] / (1024 ** 3)
             port = fn.free_port(8091)
-            cmd = fn.build_command(paths, ctx // 1024, kv, mtp, port, int(o.get("draft_n") or 0) or None, binary=exe, threads=os.cpu_count(), spec=model_id)
+            cmd = fn.build_command(paths, ctx // 1024, kv, mtp, port, int(o.get("draft_n") or 0) or None, binary=exe,
+                                   threads=os.cpu_count(), spec=model_id, engram_gpu=engram_gpu)
             proc = fn.launch(cmd, FLASH_NEXT_LOG)
             MODEL_DOWNLOAD_STATE["progress"] = 0.55
 
