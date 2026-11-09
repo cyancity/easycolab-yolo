@@ -348,7 +348,11 @@ def _load(d: dict, m: dict):
     _step(d, 4)
     body = {"model_id": m["app_id"], **m.get("load", {}), **d["params"].get("load", {})}
     _api(d, "/minimax_api/load_model", body, timeout=60)
-    _wait(d, lambda s: s.get("is_loading_vram") or m["app_id"] in (s.get("loaded_model_ids") or []), 60)
+    # 显存预检这类秒级失败来不及置 is_loading_vram，只留下「加载 … 失败: …」，不认它会空等 60 秒再报超时
+    st = _wait(d, lambda s: s.get("is_loading_vram") or m["app_id"] in (s.get("loaded_model_ids") or [])
+               or "失败" in str(s.get("task_message") or ""), 60)
+    if not st.get("is_loading_vram") and m["app_id"] not in (st.get("loaded_model_ids") or []):
+        raise RuntimeError(str(st.get("task_message") or "载入失败"))
     st = _wait(d, lambda s: not s.get("is_loading_vram"), 3600, every=4)
     if m["app_id"] not in (st.get("loaded_model_ids") or []):
         raise RuntimeError("载入失败：" + str(st.get("task_message") or ""))
