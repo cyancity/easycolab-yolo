@@ -17,8 +17,10 @@ import json
 import time
 import uuid
 import argparse
+import tempfile
 import urllib.request
 from importlib import resources
+from datetime import datetime, timezone
 
 import requests
 from google.auth.transport.requests import Request
@@ -94,6 +96,80 @@ def _has_valid_token() -> bool:
 
 PKCE_VERIFIER_PATH = os.path.expanduser("~/.config/colab-cli/pkce_verifier.txt")
 ACCOUNT_PROFILE_CACHE_PATH = os.path.expanduser("~/.config/colab-cli/account_profile.json")
+# 多账号凭据库：保存每个登录过的账号 OAuth 凭据，实现「切号不丢号」
+ACCOUNTS_STORE_PATH = os.path.expanduser("~/.config/colab-cli/accounts.json")
+
+
+def _load_accounts_store() -> dict:
+    """读取多账号凭据库；文件缺失或损坏时返回空库，保证调用方逻辑不中断"""
+    store = {"version": 1, "accounts": []}
+    if not os.path.exists(ACCOUNTS_STORE_PATH):
+        return store
+    try:
+        with open(ACCOUNTS_STORE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and isinstance(data.get("accounts"), list):
+            store["version"] = int(data.get("version") or 1)
+            store["accounts"] = [a for a in data["accounts"] if isinstance(a, dict)]
+    except Exception:
+        pass
+    return store
+
+
+def _save_accounts_store(store: dict):
+    """多账号凭据库落盘：同目录临时文件 + os.replace 原子替换，权限 0600 尽力而为"""
+    dir_path = os.path.dirname(ACCOUNTS_STORE_PATH)
+    os.makedirs(dir_path, exist_ok=True)
+    tmp_fd, tmp_path = tempfile.mkstemp(prefix="accounts_", suffix=".tmp", dir=dir_path)
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            json.dump(store, f, ensure_ascii=False)
+        try:
+            os.chmod(tmp_path, 0o600)
+        except Exception:
+            pass
+        os.replace(tmp_path, ACCOUNTS_STORE_PATH)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+        raise
+
+
+def _upsert_account(email: str, token_json: str):
+    """以邮箱为唯一键把账号凭据 upsert 进多账号库，不影响其他已保存账号"""
+    email = (email or "").strip()
+    if not email or not token_json:
+        return
+    store = _load_accounts_store()
+    accounts = store.get("accounts", [])
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for a in accounts:
+        if str(a.get("email") or "").strip().lower() == email.lower():
+            a["token_json"] = token_json
+            a["updated_at"] = now_iso
+            break
+    else:
+        accounts.append({"email": email, "token_json": token_json, "updated_at": now_iso})
+    store["accounts"] = accounts
+    _save_accounts_store(store)
+
+
+def _remove_account_from_store(email: str) -> bool:
+    """从多账号库中移除指定邮箱条目，返回是否确有删除（其余账号一律保留）"""
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    store = _load_accounts_store()
+    accounts = store.get("accounts", [])
+    kept = [a for a in accounts if str(a.get("email") or "").strip().lower() != email]
+    if len(kept) == len(accounts):
+        return False
+    store["accounts"] = kept
+    _save_accounts_store(store)
+    return True
 
 
 def _clear_local_session_store():
@@ -179,12 +255,28 @@ def cmd_auth_code(code: str):
         os.makedirs(os.path.dirname(TOKEN_CONFIG_PATH), exist_ok=True)
         with open(TOKEN_CONFIG_PATH, "w", encoding="utf-8") as f:
             f.write(creds.to_json())
+        # 新登录账号收进多账号库（upsert，不覆盖其他账号），实现切号不丢号
+        try:
+            email = _get_account_email()
+            if email:
+                # _get_account_email 内部可能刷新凭据并回写 token.json，取磁盘上最新的一份入库
+                with open(TOKEN_CONFIG_PATH, "r", encoding="utf-8") as f:
+                    _upsert_account(email, f.read())
+        except Exception:
+            pass
         return cmd_auth_status()
     except Exception as e:
         print(json.dumps({"ok": False, "logged_in": False, "error": str(e)}))
 
 
 def cmd_auth_logout():
+    # 删除 token 前先识别当前账号，只把该账号从多账号库移除，其余已保存账号保留
+    try:
+        email = _get_account_email()
+        if email:
+            _remove_account_from_store(email)
+    except Exception:
+        pass
     _clear_local_session_store()
     for p in (TOKEN_CONFIG_PATH, PKCE_VERIFIER_PATH, ACCOUNT_PROFILE_CACHE_PATH):
         if os.path.exists(p):
@@ -211,37 +303,122 @@ def cmd_auth_status():
         print(json.dumps({"ok": True, "logged_in": False}))
         return
 
+    email = _get_account_email()
+    # CU 用量查询单独容错：免费账号无 CU 计量时会异常，降级为 null 并附 usage_error，不拖垮整个状态输出
+    usage_error = None
+    paid_balance = burn_rate_hourly = active_assignments = None
     try:
         info = state.client.get_consumption_user_info()
-        local_sessions, assignments = _safe_sync_sessions()
-        name_by_ep = {s.endpoint: s.name for s in local_sessions.values()}
-        sess_list = []
-        for a in assignments:
-            sess_list.append({
-                "name": name_by_ep.get(a.endpoint, "colab-vm"),
-                "endpoint": a.endpoint,
-                "accelerator": a.accelerator.value,
-                "variant": a.variant.name,
-                "shape": a.machine_shape.name,
-            })
-
-        email = _get_account_email()
-        print(json.dumps({
-            "ok": True,
-            "logged_in": True,
-            "email": email,
-            "paid_balance": round(float(info.paid_compute_units_balance), 2),
-            "burn_rate_hourly": round(float(info.consumption_rate_hourly), 2),
-            "active_assignments": int(info.assignments_count),
-            "sessions": sess_list,
-        }))
+        paid_balance = round(float(info.paid_compute_units_balance), 2)
+        burn_rate_hourly = round(float(info.consumption_rate_hourly), 2)
+        active_assignments = int(info.assignments_count)
     except Exception as e:
-        print(json.dumps({
-            "ok": False,
-            "logged_in": True,
-            "email": _get_account_email(),
-            "error": str(e),
-        }))
+        usage_error = str(e)[:120]
+
+    local_sessions, assignments = _safe_sync_sessions()
+    name_by_ep = {s.endpoint: s.name for s in local_sessions.values()}
+    sess_list = []
+    for a in assignments:
+        sess_list.append({
+            "name": name_by_ep.get(a.endpoint, "colab-vm"),
+            "endpoint": a.endpoint,
+            "accelerator": a.accelerator.value,
+            "variant": a.variant.name,
+            "shape": a.machine_shape.name,
+        })
+
+    payload = {
+        "ok": True,
+        "logged_in": True,
+        "email": email,
+        "paid_balance": paid_balance,
+        "burn_rate_hourly": burn_rate_hourly,
+        "active_assignments": active_assignments,
+        "sessions": sess_list,
+    }
+    if usage_error:
+        payload["usage_error"] = usage_error
+    print(json.dumps(payload))
+
+
+def cmd_accounts_list():
+    """列出多账号库中已保存的账号与当前活跃账号（只输出邮箱与 active 标记，绝不输出任何 token 内容）"""
+    store = _load_accounts_store()
+    active_email = _get_account_email()
+    accounts = [
+        {
+            "email": str(a.get("email") or ""),
+            "active": str(a.get("email") or "").strip().lower() == active_email.strip().lower(),
+        }
+        for a in store.get("accounts", [])
+        if a.get("email")
+    ]
+    print(json.dumps({"ok": True, "active_email": active_email, "accounts": accounts}))
+
+
+def cmd_accounts_switch(email: str):
+    """切换到多账号库中的指定账号：凭据写入 token.json 并清理旧会话缓存，随后输出完整登录状态"""
+    email = (email or "").strip()
+    store = _load_accounts_store()
+    entry = None
+    for a in store.get("accounts", []):
+        if str(a.get("email") or "").strip().lower() == email.lower():
+            entry = a
+            break
+    if not entry:
+        print(json.dumps({"ok": False, "error": f"account not found: {email}"}))
+        return
+    try:
+        creds = Credentials.from_authorized_user_info(json.loads(entry.get("token_json") or ""), PUBLIC_SCOPES)
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)[:200]}))
+        return
+    try:
+        # 库里凭据可能已过期，切换时先刷新；刷新失败不阻断切换，由随后的 auth_status 如实报告登录态
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+    except Exception:
+        pass
+    token_json = creds.to_json()
+    os.makedirs(os.path.dirname(TOKEN_CONFIG_PATH), exist_ok=True)
+    with open(TOKEN_CONFIG_PATH, "w", encoding="utf-8") as f:
+        f.write(token_json)
+    try:
+        _upsert_account(entry.get("email"), token_json)
+    except Exception:
+        pass
+    _clear_local_session_store()
+    cmd_auth_status()
+
+
+def cmd_accounts_remove(email: str):
+    """从多账号库移除指定账号；若移除的是当前活跃账号，同时清理本地 token 与账号缓存"""
+    email = (email or "").strip()
+    target = ""
+    for a in _load_accounts_store().get("accounts", []):
+        if str(a.get("email") or "").strip().lower() == email.lower():
+            target = str(a.get("email") or "")
+            break
+    if not target:
+        print(json.dumps({"ok": False, "error": f"account not found: {email}"}))
+        return
+    active_email = _get_account_email()
+    was_active = bool(active_email) and active_email.strip().lower() == email.lower()
+    _remove_account_from_store(target)
+    if was_active:
+        # 当前活跃账号被移除后，active_email 失去对应 token，直接置空避免再查一次网络
+        for p in (TOKEN_CONFIG_PATH, ACCOUNT_PROFILE_CACHE_PATH):
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+        active_email = ""
+    print(json.dumps({
+        "ok": True,
+        "removed_email": target,
+        "active_email": active_email,
+    }))
 
 
 def _build_rclone_drive_conf() -> str:
@@ -810,6 +987,12 @@ def main(argv=None):
     p_code = sub.add_parser("auth_code")
     p_code.add_argument("code", type=str)
 
+    sub.add_parser("accounts_list")
+    p_switch = sub.add_parser("accounts_switch")
+    p_switch.add_argument("email", type=str)
+    p_remove = sub.add_parser("accounts_remove")
+    p_remove.add_argument("email", type=str)
+
     p_wake = sub.add_parser("wake")
     p_wake.add_argument("--gpu", type=str, default="G4")
     p_wake.add_argument(
@@ -830,6 +1013,12 @@ def main(argv=None):
         cmd_auth_logout()
     elif args.cmd == "auth_code":
         cmd_auth_code(args.code)
+    elif args.cmd == "accounts_list":
+        cmd_accounts_list()
+    elif args.cmd == "accounts_switch":
+        cmd_accounts_switch(args.email)
+    elif args.cmd == "accounts_remove":
+        cmd_accounts_remove(args.email)
     elif args.cmd == "wake":
         cmd_wake(args.gpu, args.app_py)
     elif args.cmd == "keepalive":

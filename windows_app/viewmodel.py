@@ -124,6 +124,10 @@ class EasyColabViewModel(QObject):
         self.is_waking_colab: bool = False
         self.is_releasing_colab: bool = False
         self._auth_busy: bool = False
+        # 多账号切换：bridge store 里已保存的账号与当前账号用量摘要
+        self.saved_accounts: List[Dict] = []
+        self.usage_note: str = ""
+        self.active_gpu_summary: str = ""
 
         # ── Remote Runtime & Telemetry State ──
         self.is_connected: bool = False
@@ -257,6 +261,7 @@ class EasyColabViewModel(QObject):
     def start(self) -> None:
         self.refresh_local_media_gallery(auto_select_first=True)
         self.refresh_official_colab_account_usage()
+        self.load_saved_accounts()
         if self.normalized_base_url:
             self.check_colab_status(silent=True)
         self._bg_timer.start()
@@ -730,6 +735,12 @@ class EasyColabViewModel(QObject):
                         self.official_cu_balance = bal
                         self.total_budget_cu = bal
                         self._save_setting("totalBudgetCU", bal)
+                        self.usage_note = ""
+                    else:
+                        self.usage_note = tr(
+                            "用量信息不可用（免费账号无 CU 计量）",
+                            "Usage info unavailable (free accounts have no CU metering)",
+                        )
                     if data.get("burn_rate_hourly") is not None:
                         self.official_burn_rate = float(data["burn_rate_hourly"])
                     if data.get("active_assignments") is not None:
@@ -738,6 +749,17 @@ class EasyColabViewModel(QObject):
                             self.reset_stale_remote_runtime_state(
                                 tr("云端实例已释放，本地状态已同步归零。", "Cloud runtime released; local state reset.")
                             )
+                    # 从会话列表按 accelerator 字符串去重计数，拼出 "GPU:T4 ×1, H100 ×1"
+                    gpu_counts: Dict[str, int] = {}
+                    for sess in data.get("sessions") or []:
+                        if isinstance(sess, dict):
+                            acc = str(sess.get("accelerator") or "").strip()
+                            if acc:
+                                gpu_counts[acc] = gpu_counts.get(acc, 0) + 1
+                    self.active_gpu_summary = ", ".join(f"{k} ×{v}" for k, v in gpu_counts.items())
+                else:
+                    self.usage_note = ""
+                    self.active_gpu_summary = ""
                 self.state_changed.emit()
 
             self._dispatch_ui(apply_ui)
@@ -820,6 +842,9 @@ class EasyColabViewModel(QObject):
                     self.cli_logged_in = True
                     self.account_email = new_email
                     self.show_oauth_code_input = False
+                    # 新账号用量未知，先清掉上一账号残留，等用量刷新回填
+                    self.usage_note = ""
+                    self.active_gpu_summary = ""
                     if data.get("paid_balance") is not None:
                         bal = float(data["paid_balance"])
                         self.official_cu_balance = bal
@@ -834,6 +859,7 @@ class EasyColabViewModel(QObject):
                         f"Google account bound ({self.display_account_label})! Ready to wake {self.wake_gpu_choice} runtime in 1 click.",
                     )
                     self.append_console_line(self.status_message)
+                    self.load_saved_accounts()
                 else:
                     err = str(data.get("error") or tr("授权码无效或已过期", "Invalid or expired authorization code"))
                     self.status_message = tr(f"绑定失败：{err}", f"Account binding failed: {err}")
@@ -857,9 +883,84 @@ class EasyColabViewModel(QObject):
                 self.official_cu_balance = None
                 self.official_burn_rate = None
                 self.active_vm_count = 0
+                self.usage_note = ""
+                self.active_gpu_summary = ""
                 self.show_oauth_code_input = False
                 self.set_colab_server_url("")
                 self.reset_stale_remote_runtime_state(tr("已退出当前 Google 账号。", "Signed out of Google account."))
+                self.load_saved_accounts()
+                self.state_changed.emit()
+
+            self._dispatch_ui(apply_ui)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def load_saved_accounts(self) -> None:
+        """后台拉取 bridge store 中已保存的多账号列表；失败静默置空。"""
+
+        def worker() -> None:
+            try:
+                data = self._run_bridge_json(["accounts_list"], install_if_missing=False, timeout=20)
+            except Exception:
+                data = {"ok": False}
+
+            def apply_ui() -> None:
+                active_email = str(data.get("active_email") or "")
+                accounts: List[Dict] = []
+                for item in data.get("accounts") or []:
+                    if isinstance(item, dict) and item.get("email"):
+                        email = str(item["email"])
+                        # item 未带 active 时退回用顶层 active_email 判断
+                        is_active = bool(item.get("active")) or (email == active_email and bool(active_email))
+                        accounts.append({"email": email, "active": is_active})
+                self.saved_accounts = accounts
+                self.state_changed.emit()
+
+            self._dispatch_ui(apply_ui)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def switch_saved_account(self, email: str) -> None:
+        """切换到 store 中已保存的账号；全程复用 _auth_busy 防重入。"""
+        target = (email or "").strip()
+        if not target or self._auth_busy:
+            return
+        self._auth_busy = True
+        self.status_message = tr("正在切换 Google 账号...", "Switching Google account...")
+        self.state_changed.emit()
+
+        def worker() -> None:
+            try:
+                data = self._run_bridge_json(["accounts_switch", target], install_if_missing=False, timeout=45)
+            except Exception as exc:
+                data = {"ok": False, "error": str(exc)}
+
+            def apply_ui() -> None:
+                self._auth_busy = False
+                if data.get("ok") and data.get("logged_in"):
+                    new_email = str(data.get("email") or target)
+                    masked = mask_email_display(new_email, self.mask_server_url)
+                    self.cli_logged_in = True
+                    self.account_email = new_email
+                    self.show_oauth_code_input = False
+                    # 上一账号的用量与云端残留先清零，等用量刷新回填
+                    self.official_cu_balance = None
+                    self.official_burn_rate = None
+                    self.active_vm_count = 0
+                    self.usage_note = ""
+                    self.active_gpu_summary = ""
+                    self.reset_stale_remote_runtime_state(
+                        tr(
+                            f"已切换到 {masked}，云端状态已复位。",
+                            f"Switched to {masked}; cloud state reset.",
+                        )
+                    )
+                    self.refresh_official_colab_account_usage()
+                    self.load_saved_accounts()
+                else:
+                    err = str(data.get("error") or tr("切换失败", "Account switch failed"))
+                    self.status_message = tr(f"切换账号失败：{err}", f"Account switch failed: {err}")
+                    self.append_console_line(self.status_message)
                 self.state_changed.emit()
 
             self._dispatch_ui(apply_ui)
