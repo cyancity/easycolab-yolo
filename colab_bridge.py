@@ -673,7 +673,7 @@ def _allocate_fresh_session(session_name: str, gpu_type: str) -> SessionState:
     return s
 
 
-def cmd_wake(gpu_type: str, app_py_path: str):
+def cmd_wake(gpu_type: str, app_py_path: str, session: str = ""):
     """
     无浏览器一键唤醒 Colab GPU 并自动部署 EasyColab 多模型服务端：
     1. 幂等检查：若已有运行中的会话且探活成功则直接复用，否则自动清理失效会话并分配新实例
@@ -686,9 +686,13 @@ def cmd_wake(gpu_type: str, app_py_path: str):
         return
 
     try:
-        session_name = "easycolab"
+        session_name = session or "easycolab"
         print("WAKE_LOG: 🔍 正在检查账号下已有的 Colab 实例...", flush=True)
         local_sessions, assignments = _safe_sync_sessions()
+        if session:
+            # 工作台按会话名精确管理同账号下的多个实例，不接管其他会话或云端孤儿实例
+            local_sessions = {k: v for k, v in local_sessions.items() if k == session}
+            assignments = []
 
         target_session = (
             local_sessions.get(session_name)
@@ -758,6 +762,11 @@ def cmd_wake(gpu_type: str, app_py_path: str):
                 if up_attempt == 3:
                     raise up_err
                 time.sleep(2.5)
+        # runtime/ 下的附加模块（GPU 采集、Flash-Next 运行时）与 app.py 放在同一目录，app.py 按需 import
+        rt_dir = os.path.join(os.path.dirname(os.path.abspath(app_py_path)), "runtime")
+        for name in sorted(os.listdir(rt_dir)) if os.path.isdir(rt_dir) else []:
+            if name.endswith(".py"):
+                contents.upload(os.path.join(rt_dir, name), "content/" + name)
 
         rclone_conf_text = _build_rclone_drive_conf()
         if rclone_conf_text:
@@ -1064,6 +1073,7 @@ def main(argv=None):
 
     p_wake = sub.add_parser("wake")
     p_wake.add_argument("--gpu", type=str, default="G4")
+    p_wake.add_argument("--session", type=str, default="")
     p_wake.add_argument(
         "--app-py",
         type=str,
@@ -1089,7 +1099,7 @@ def main(argv=None):
     elif args.cmd == "accounts_remove":
         cmd_accounts_remove(args.email)
     elif args.cmd == "wake":
-        cmd_wake(args.gpu, args.app_py)
+        cmd_wake(args.gpu, args.app_py, args.session)
     elif args.cmd == "keepalive":
         cmd_keepalive()
     elif args.cmd == "stop_all":

@@ -1062,7 +1062,7 @@ def _optimize_qwen35_for_fast_inference(mdl, max_context_len: int = 32768):
         print(f"[加速引擎] CUDAGraph 未捕获，融合算子仍保留 ({type(opt_err).__name__}: {opt_err})")
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 # ==============================================================================
@@ -1114,7 +1114,7 @@ def _is_llm_model_id(model_id: Optional[str]) -> bool:
 
 
 def _stop_gguf_server_bundle(bundle: Optional[Dict[str, Any]]):
-    if not bundle or bundle.get("backend") != "gguf":
+    if not bundle or bundle.get("backend") not in ("gguf", "flash_next"):
         return
     proc = bundle.pop("server_proc", None)
     if proc is not None:
@@ -1139,7 +1139,7 @@ def _cleanup_all_gguf_servers():
 
 atexit.register(_cleanup_all_gguf_servers)
 if os.path.exists("/content"):
-    subprocess.run(["pkill", "-f", "llama-server.*Qwen3\\.8-27B"], check=False)
+    subprocess.run(["pkill", "-f", "llama-server.*Qwen3\\.8-(27B|Flash)"], check=False)
 
 
 def _make_abort_stopping_criteria(local_cancel: Optional[threading.Event] = None):
@@ -1354,6 +1354,22 @@ MODEL_CATALOG: Dict[str, Dict[str, Any]] = {
             ("Qwen3.8-27B-UD-Q4_K_M.gguf", "Unsloth UD-Q4_K_M 主模型权重 (约 16.5 GB)"),
             ("mmproj-F16.gguf", "多模态视觉投影器 mmproj-F16 (约 0.93 GB)"),
             ("MTP/mtp-Qwen3.8-27B-Q4_0.gguf", "Unsloth MTP 多词元并行投机解码头 (约 1.31 GB)"),
+        ],
+    },
+    "qwen38_flash_next": {
+        "id": "qwen38_flash_next",
+        "name": "Qwen3.8-Flash-Next",
+        "repo_id": "unsloth/Qwen3.8-Flash-Next-GGUF",
+        "modality": "llm",
+        "category": "180B MoE · UD-IQ4_XS + MTP 投机加速 · 512K 上下文 (llama.cpp 独立服务)",
+        "approx_size_gb": 91.1,
+        # 与 runtime/flash_next.py 默认量化 UD-IQ4_XS + MTP 完整头一致；其他量化由加载时补下载，不计入这里的状态
+        "files": [
+            ("UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf", "UD-IQ4_XS 元数据分片 1/4 (约 11 MB)"),
+            ("UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00002-of-00004.gguf", "UD-IQ4_XS 主权重分片 2/4 (约 49.6 GB)"),
+            ("UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00003-of-00004.gguf", "UD-IQ4_XS 主权重分片 3/4 (约 15.3 GB)"),
+            ("UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00004-of-00004.gguf", "Engram 词表分片 4/4 (约 28.8 GB，驻 CPU 内存)"),
+            ("MTP/mtp-Qwen3.8-Flash-Next-Q8_0.gguf", "MTP 多词元并行投机解码头 (约 4.1 GB)"),
         ],
     },
     "qwen_image_21": {
@@ -1931,6 +1947,18 @@ def get_gpu_status_dict(model_id: Optional[str] = None) -> Dict[str, Any]:
     if _has_rclone_drive_remote():
         base["drive_persisted"] = True
     base["comfyui"] = get_comfyui_status_dict()
+    try:
+        import gpu_stats  # 工作台唤醒时随 app.py 上传；笔记本模式没有这个文件就跳过
+        gpu_stats.start_sampler()
+        base["gpu"] = gpu_stats.snapshot()
+    except Exception:
+        pass
+    if FLASH_NEXT_ID in LOADED_RUNTIMES:
+        try:
+            import gpu_stats
+            base["llm_metrics"] = gpu_stats.llama_metrics(f"http://127.0.0.1:{LOADED_RUNTIMES[FLASH_NEXT_ID]['port']}", timeout=2)
+        except Exception:
+            pass
     return base
 
 
@@ -2019,6 +2047,8 @@ def _async_backup_to_drive(src_file: str, dst_dir: str, fname: str):
 
 def download_model_weights_core(model_id: Optional[str] = None, hf_token: str = "") -> Tuple[bool, str]:
     global SELECTED_MODEL_ID
+    if model_id == "qwen38_flash_next":
+        return flash_next_download_core(hf_token)
     touch_activity()
     if MODEL_DOWNLOAD_STATE["is_downloading"]:
         return False, "模型正在下载中，请稍候..."
@@ -2643,6 +2673,170 @@ def _start_qwen_gguf_server(
     raise RuntimeError(f"Qwen3.8-27B-GGUF 服务启动失败: {last_err[-400:]}")
 
 
+# ==============================================================================
+# Qwen3.8-Flash-Next：独立 llama-server (runtime/flash_next.py 负责编译、下载、命令行)，网关原样转发
+# ==============================================================================
+FLASH_NEXT_ID = "qwen38_flash_next"
+FLASH_NEXT_LOG = "/tmp/llama-server-flash-next.log"
+
+
+def _flash_next_mod():
+    try:
+        import flash_next  # 与 app.py 同目录上传；笔记本模式没有这个文件
+    except ImportError:
+        raise RuntimeError("缺少 flash_next.py，请通过工作台部署 (runtime/ 会随 app.py 一起上传)")
+    flash_next.set_log_hook(lambda m: MODEL_DOWNLOAD_STATE.update(message=f"Flash-Next · {m}"))
+    return flash_next
+
+
+def _flash_next_weights_dir() -> str:
+    """权重根目录：优先已有文件所在处，其次云盘（空间够时），否则本地 models/"""
+    spec = MODEL_CATALOG[FLASH_NEXT_ID]
+    local = os.path.join(os.getcwd(), "models")
+    for root in (MODEL_BASE_ROOT, local):
+        if os.path.exists(os.path.join(root, spec["repo_id"], spec["files"][0][0])):
+            return root
+    if DRIVE_MOUNTED:
+        try:
+            if shutil.disk_usage("/content/drive/MyDrive").free / (1024 ** 3) < spec["approx_size_gb"] + 2.0:
+                return local
+        except Exception:
+            pass
+    return MODEL_BASE_ROOT
+
+
+def _flash_next_progress(frac: float, text: str):
+    MODEL_DOWNLOAD_STATE["progress"] = round(0.02 + 0.96 * min(1.0, frac), 3)
+    MODEL_DOWNLOAD_STATE["message"] = f"正在下载 Flash-Next 权重 {text} · {frac:.0%}"
+
+
+def flash_next_download_core(hf_token: str = "") -> Tuple[bool, str]:
+    global SELECTED_MODEL_ID
+    touch_activity()
+    if MODEL_DOWNLOAD_STATE["is_downloading"]:
+        return False, "模型正在下载中，请稍候..."
+    spec = MODEL_CATALOG[FLASH_NEXT_ID]
+    SELECTED_MODEL_ID = FLASH_NEXT_ID
+    MODEL_DOWNLOAD_STATE.update(is_downloading=True, progress=0.02, message=f"正在下载 {spec['name']} 权重 (UD-IQ4_XS + MTP)...")
+    try:
+        if hf_token and hf_token.strip():
+            os.environ["HF_TOKEN"] = hf_token.strip()
+        _flash_next_mod().ensure_weights(_flash_next_weights_dir(), "UD-IQ4_XS", True, progress=_flash_next_progress)
+        msg = f"{spec['name']} 权重已就绪，现在可点击「加载到显存」！"
+        MODEL_DOWNLOAD_STATE.update(progress=1.0, message=msg)
+        return True, msg
+    except Exception as e:
+        msg = f"下载 {spec['name']} 权重出错: {e}"
+        MODEL_DOWNLOAD_STATE["message"] = msg
+        print(msg)
+        return False, msg
+    finally:
+        with _TELEMETRY_LOCK:
+            _CACHED_FILE_STATUS_MAP.clear()
+        MODEL_DOWNLOAD_STATE["is_downloading"] = False
+
+
+def flash_next_load_core(options: Optional[Dict[str, Any]] = None, context_length: Optional[int] = None) -> Tuple[bool, str]:
+    """options: quant (UD-IQ4_XS) / kv (q8_0) / mtp (True) / draft_n (2)；上下文默认 524288，不写入 QWEN_CONTEXT_LENGTH"""
+    global SELECTED_MODEL_ID
+    touch_activity()
+    if MODEL_DOWNLOAD_STATE["is_loading_vram"]:
+        return False, "模型正在加载进显存中，请稍候..."
+    if not torch.cuda.is_available():
+        return False, "未检测到 CUDA GPU！请在 Colab 中切换为 G4 / H100 / A100 GPU。"
+    o = options or {}
+    quant, kv, mtp = str(o.get("quant") or "UD-IQ4_XS"), str(o.get("kv") or "q8_0"), bool(o.get("mtp", True))
+    ctx = max(8192, min(1048576, int(context_length or o.get("context_length") or 524288)))
+    spec = MODEL_CATALOG[FLASH_NEXT_ID]
+    SELECTED_MODEL_ID = FLASH_NEXT_ID
+    t_start, proc = time.time(), None
+    MODEL_DOWNLOAD_STATE.update(is_loading_vram=True, progress=0.05, message=f"正在准备 {spec['name']} (llama.cpp 首次编译约 10-25 分钟)...")
+    try:
+        fn = _flash_next_mod()
+        total_gb = torch.cuda.mem_get_info("cuda")[1] / (1024 ** 3)
+        plan = fn.plan(total_gb, ctx // 1024, quant, kv, mtp)
+        if plan["used_gib"] > total_gb:
+            raise RuntimeError(f"显存不足: 预估需 {plan['used_gib']} GiB > GPU {total_gb:.0f} GiB，请降低上下文或换小量化")
+        exe = fn.ensure_llama_server(MODEL_BASE_ROOT)
+        MODEL_DOWNLOAD_STATE["progress"] = 0.3
+        paths = fn.ensure_weights(_flash_next_weights_dir(), quant, mtp)
+        MODEL_DOWNLOAD_STATE.update(progress=0.45, message="正在腾退显存并启动 llama-server...")
+        with GPU_LOCK:
+            if torch.cuda.mem_get_info("cuda")[0] / (1024 ** 3) < plan["used_gib"] and COMFYUI_STATE.get("is_running"):
+                free_comfyui_vram_core()
+            evicted = _ensure_vram_for_new_model_locked(FLASH_NEXT_ID, min(plan["used_gib"], total_gb - 1.2))
+            free_before = torch.cuda.mem_get_info("cuda")[0] / (1024 ** 3)
+            port = fn.free_port(8091)
+            cmd = fn.build_command(paths, ctx // 1024, kv, mtp, port, int(o.get("draft_n") or 2), binary=exe, threads=os.cpu_count())
+            proc = fn.launch(cmd, FLASH_NEXT_LOG)
+            MODEL_DOWNLOAD_STATE["progress"] = 0.55
+
+            def _tick():
+                MODEL_DOWNLOAD_STATE["progress"] = min(0.95, MODEL_DOWNLOAD_STATE["progress"] + 0.004)
+                MODEL_DOWNLOAD_STATE["message"] = f"正在载入权重至显存 ({int(time.time() - t_start)}s)..."
+
+            if not fn.wait_ready(port, 1800, proc, on_tick=_tick):
+                raise RuntimeError("llama-server 未能就绪")
+            vram_gb = round(max(0.5, free_before - torch.cuda.mem_get_info("cuda")[0] / (1024 ** 3)), 1)
+            mode_label = f"Flash-Next · {quant} · {ctx // 1024}K" + (" · MTP" if mtp else "")
+            LOADED_RUNTIMES[FLASH_NEXT_ID] = {
+                "model_id": FLASH_NEXT_ID, "name": spec["name"], "modality": spec["modality"], "mode_label": mode_label,
+                "pipeline": None, "vram_gb": vram_gb, "loaded_at": time.time(), "port": port, "proc": proc,
+                # server_proc 让 _stop_gguf_server_bundle 在卸载/退出时终止进程
+                "llm_bundle": {"backend": "flash_next", "context_length": ctx, "server_proc": proc},
+            }
+            _sync_legacy_globals()
+        msg = f"{spec['name']} 已装载 ({mode_label}，约 {vram_gb}GB，耗时 {round(time.time() - t_start)}s)" + (f"，已腾退 {', '.join(evicted)}" if evicted else "")
+        MODEL_DOWNLOAD_STATE.update(progress=1.0, message=msg)
+        return True, msg
+    except Exception as e:
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+        tail = _flash_next_mod().log_tail(FLASH_NEXT_LOG) if proc is not None else ""
+        err = f"加载 {spec['name']} 失败: {e}" + (f" | {tail}" if tail else "")
+        MODEL_DOWNLOAD_STATE["message"] = err
+        print(err)
+        return False, err
+    finally:
+        MODEL_DOWNLOAD_STATE["is_loading_vram"] = False
+        touch_activity()
+
+
+def _flash_next_port(model_name: str) -> Optional[int]:
+    """请求应转给 Flash-Next 时返回其端口：模型名含 flash-next，或它是唯一已加载的语言模型"""
+    rt = LOADED_RUNTIMES.get(FLASH_NEXT_ID)
+    if not rt:
+        return None
+    if rt["proc"].poll() is not None:
+        LOADED_RUNTIMES.pop(FLASH_NEXT_ID, None)
+        return None
+    low = model_name.lower().replace("_", "-")
+    if "flash-next" in low or not ("qwen38_27b" in LOADED_RUNTIMES or "qwen38_27b_gguf" in LOADED_RUNTIMES):
+        return rt["port"]
+    return None
+
+
+async def _flash_next_proxy(port: int, path: str, raw: bytes):
+    """原样转发请求体到本机 llama-server；event-stream 响应逐块透传"""
+    status, ctype, resp = await run_in_threadpool(_flash_next_mod().forward, port, path, raw)
+    if ctype != "text/event-stream":
+        data = await run_in_threadpool(resp.read)
+        resp.close()
+        return Response(content=data, status_code=status, media_type=ctype)
+
+    def _chunks():
+        try:
+            while True:
+                chunk = resp.read1(8192)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            resp.close()
+
+    return StreamingResponse(_chunks(), media_type=ctype, headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 def _sync_legacy_globals():
     """将多模型显存驻留表 LOADED_RUNTIMES 同步至兼容全局变量 PIPELINE / LLM_BUNDLE"""
     global PIPELINE, LLM_BUNDLE, LOADED_MODEL_ID, CURRENT_MODEL_MODE
@@ -2792,6 +2986,8 @@ def load_model_to_vram_core(
     context_length: Optional[int] = None,
 ) -> Tuple[bool, str]:
     global SELECTED_MODEL_ID, QWEN_CONTEXT_LENGTH
+    if model_id == "qwen38_flash_next":
+        return flash_next_load_core(None, context_length)
     touch_activity()
 
     if context_length is not None:
@@ -5463,6 +5659,7 @@ class LoadModelRequest(BaseModel):
     offload_mode: str = "disk"
     hf_token: str = ""
     context_length: Optional[int] = None
+    options: Dict[str, Any] = {}  # 模型专属选项，如 qwen38_flash_next 的 quant / kv / mtp
 
 
 class ContextConfigRequest(BaseModel):
@@ -7074,6 +7271,7 @@ def attach_macos_api_routes(app: FastAPI):
             {"id": "Qwen3.8-27B-UD-Q4_K_M", "object": "model", "created": now_ts, "owned_by": "unsloth", "loaded": "qwen38_27b_gguf" in LOADED_RUNTIMES},
             {"id": "Qwen/Qwen3.8-27B", "object": "model", "created": now_ts, "owned_by": "qwen", "loaded": any_qwen_loaded},
             {"id": "qwen3.8-27b", "object": "model", "created": now_ts, "owned_by": "qwen", "loaded": any_qwen_loaded},
+            {"id": "qwen3.8-flash-next", "object": "model", "created": now_ts, "owned_by": "unsloth", "loaded": "qwen38_flash_next" in LOADED_RUNTIMES},
             {"id": "Qwen/Qwen-Image-2.1", "object": "model", "created": now_ts, "owned_by": "qwen", "loaded": "qwen_image_21" in LOADED_RUNTIMES},
             {"id": "Tongyi-MAI/Z-Image-Turbo", "object": "model", "created": now_ts, "owned_by": "tongyi", "loaded": "z_image_turbo" in LOADED_RUNTIMES},
             {"id": "MiniMaxAI/MiniMax-H3", "object": "model", "created": now_ts, "owned_by": "minimax", "loaded": "minimax_h3" in LOADED_RUNTIMES},
@@ -7090,6 +7288,10 @@ def attach_macos_api_routes(app: FastAPI):
         touch_activity()
 
         body = await request.json()
+        fn_port = _flash_next_port(str(body.get("model") or ""))
+        if fn_port:
+            API_REQUEST_COUNT += 1
+            return await _flash_next_proxy(fn_port, "/v1/chat/completions", await request.body())
         req_model = body.get("model") or "Qwen/Qwen3.8-27B"
         bundle = _get_qwen_llm_bundle(preferred_model_id=str(req_model))
         if bundle is None:
@@ -7394,6 +7596,10 @@ def attach_macos_api_routes(app: FastAPI):
         touch_activity()
 
         body = await request.json()
+        fn_port = _flash_next_port(str(body.get("model") or ""))
+        if fn_port:
+            API_REQUEST_COUNT += 1
+            return await _flash_next_proxy(fn_port, "/v1/messages", await request.body())
         req_model = body.get("model") or "Qwen/Qwen3.8-27B"
         bundle = _get_qwen_llm_bundle(preferred_model_id=str(req_model))
         if bundle is None:
@@ -7695,9 +7901,13 @@ def attach_macos_api_routes(app: FastAPI):
     def api_load_model(req: LoadModelRequest):
         global QWEN_CONTEXT_LENGTH
         touch_activity()
+        target_id = req.model_id if (req.model_id and req.model_id in MODEL_CATALOG) else SELECTED_MODEL_ID
+        if target_id == "qwen38_flash_next":  # 自带 512K 上下文，不走 256K 截断的全局设置
+            if not MODEL_DOWNLOAD_STATE["is_loading_vram"]:
+                threading.Thread(target=flash_next_load_core, args=(req.options, req.context_length), daemon=True).start()
+            return get_gpu_status_dict(model_id=target_id)
         if req.context_length is not None:
             QWEN_CONTEXT_LENGTH = _clamp_context_length(req.context_length)
-        target_id = req.model_id if (req.model_id and req.model_id in MODEL_CATALOG) else SELECTED_MODEL_ID
         if not MODEL_DOWNLOAD_STATE["is_loading_vram"]:
             t = threading.Thread(
                 target=load_model_to_vram_core,
