@@ -76,7 +76,10 @@ SPECS = {
         # the 51B engram table lives in CPU RAM.  2026-11-10 on G4 without this flag the engram shard was still
         # CPU-mapped (26.8 GiB mapped, 0.6 GiB resident) and VRAM was 59.5 GB: llama.cpp keeps per-layer token
         # embeddings on the CPU by itself, so the flag only documents the intent
-        "extra_args": ["-ot", r"per_layer_token_embd\.weight=CPU"],
+        # -lzm off: this fork's --lazy-mode defaults to auto, which reads per-layer embedding tables over 4 GiB (the
+        # engram) row by row from disk on demand.  Once the page cache drops them (another quant loaded, a download)
+        # decode fell from 112-144 to 57-76 tok/s on G4 (2026-11-10); off keeps the table resident (+100 s load).
+        "extra_args": ["-ot", r"per_layer_token_embd\.weight=CPU", "-lzm", "off"],
         "sampling": _QWEN_SAMPLING,
         "arch": {"full_attn_layers": 12, "kv_heads": 2, "head_dim": 256, "indexer_dim": 128,
                  "deltanet_layers": 36, "deltanet_v_heads": 48, "deltanet_dim": 128,
