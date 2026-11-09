@@ -73,7 +73,9 @@ SPECS = {
         "max_ctx_k": 1024,
         "native_ctx": 262144,                    # above this the command adds static YaRN (factor = ctx / native)
         "draft_n": 2,
-        # the 51B engram table lives in CPU RAM (UNVERIFIED: that this tensor name is that table)
+        # the 51B engram table lives in CPU RAM.  2026-11-10 on G4 without this flag the engram shard was still
+        # CPU-mapped (26.8 GiB mapped, 0.6 GiB resident) and VRAM was 59.5 GB: llama.cpp keeps per-layer token
+        # embeddings on the CPU by itself, so the flag only documents the intent
         "extra_args": ["-ot", r"per_layer_token_embd\.weight=CPU"],
         "sampling": _QWEN_SAMPLING,
         "arch": {"full_attn_layers": 12, "kv_heads": 2, "head_dim": 256, "indexer_dim": 128,
