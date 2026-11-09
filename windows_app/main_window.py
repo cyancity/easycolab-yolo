@@ -62,6 +62,7 @@ from windows_app.models import (
     get_lang,
     get_local_save_dir,
     is_en,
+    mask_email_display,
     open_path_in_os,
     snap_video_frames,
     tr,
@@ -350,6 +351,33 @@ class EasyColabMainWindow(QMainWindow):
         vbox.addWidget(scroll, 1)
         return container
 
+    def _rebuild_account_menu(self) -> None:
+        """每次弹出时重建换号菜单：已存账号置顶（活跃账号打勾禁用），后接 OAuth 换号与退出。"""
+        menu = self.acc_menu
+        menu.clear()
+        for acc in self.vm.saved_accounts:
+            email = str(acc.get("email") or "")
+            if not email:
+                continue
+            is_active = bool(acc.get("active"))
+            act = QAction(
+                ("✓ " if is_active else "") + mask_email_display(email, self.vm.mask_server_url),
+                self,
+            )
+            if is_active:
+                act.setEnabled(False)
+            else:
+                act.triggered.connect(lambda checked=False, addr=email: self.vm.switch_saved_account(addr))
+            menu.addAction(act)
+        if menu.actions():
+            menu.addSeparator()
+        act_switch = QAction(tr("切换 Google 账号...", "Switch Google Account..."), self)
+        act_switch.triggered.connect(lambda: self.vm.start_google_oauth_login(True))
+        menu.addAction(act_switch)
+        act_logout = QAction(tr("退出当前账号", "Sign Out"), self)
+        act_logout.triggered.connect(self.vm.logout_google_account)
+        menu.addAction(act_logout)
+
     def _build_sidebar_card1_instance(self) -> SidebarCard:
         self.conn_badge = PillBadge(tr("离线", "Offline"), fg="#64748B", bg="rgba(148,163,184,0.16)")
         card = SidebarCard(tr("Colab 算力实例", "Colab Cloud Runtime"), trailing=self.conn_badge)
@@ -375,17 +403,18 @@ class EasyColabMainWindow(QMainWindow):
         acc_row.addWidget(self.acc_refresh_btn)
 
         self.acc_menu_btn = QPushButton(tr("换号", "Account"))
-        acc_menu = QMenu(self)
-        act_switch = QAction(tr("切换 Google 账号...", "Switch Google Account..."), self)
-        act_switch.triggered.connect(lambda: self.vm.start_google_oauth_login(True))
-        act_logout = QAction(tr("退出当前账号", "Sign Out"), self)
-        act_logout.triggered.connect(self.vm.logout_google_account)
-        acc_menu.addAction(act_switch)
-        acc_menu.addSeparator()
-        acc_menu.addAction(act_logout)
-        self.acc_menu_btn.setMenu(acc_menu)
+        self.acc_menu = QMenu(self)
+        self.acc_menu.aboutToShow.connect(self._rebuild_account_menu)
+        self.acc_menu_btn.setMenu(self.acc_menu)
         acc_row.addWidget(self.acc_menu_btn)
         card.body.addLayout(acc_row)
+
+        # Row 1a: 账号用量紧凑提示（免费账号无 CU 计量等）
+        self.acc_usage_lbl = QLabel("")
+        self.acc_usage_lbl.setWordWrap(True)
+        self.acc_usage_lbl.setStyleSheet("font-size: 11px; color: #64748B;")
+        self.acc_usage_lbl.setVisible(False)
+        card.body.addWidget(self.acc_usage_lbl)
 
         # Row 1b: OAuth Code input (hidden by default)
         self.oauth_box = QWidget()
@@ -2164,6 +2193,9 @@ class EasyColabMainWindow(QMainWindow):
         self.bind_btn.setVisible(not self.vm.cli_logged_in)
         self.acc_refresh_btn.setVisible(self.vm.cli_logged_in)
         self.acc_menu_btn.setVisible(self.vm.cli_logged_in)
+        acc_note = self.vm.usage_note if self.vm.cli_logged_in else ""
+        self.acc_usage_lbl.setText(acc_note)
+        self.acc_usage_lbl.setVisible(bool(acc_note))
         self.oauth_box.setVisible(self.vm.show_oauth_code_input)
         self.wake_row_widget.setVisible(self.vm.cli_logged_in)
 
@@ -2189,9 +2221,24 @@ class EasyColabMainWindow(QMainWindow):
         self.drive_pill.setVisible(self.vm.drive_persisted)
 
         # 2. CU Ledger & Idle Timeout
-        self.cu_title_lbl.setText(
-            tr("账户余额", "CU Balance") if self.vm.official_cu_balance is not None else tr("预计余额", "Est. Balance")
-        )
+        gpu_summary = self.vm.active_gpu_summary
+        if gpu_summary:
+            has_official = self.vm.official_cu_balance is not None
+            self.cu_title_lbl.setText(
+                tr(
+                    f"账户余额 · 实例：{gpu_summary}",
+                    f"CU Balance · Instances: {gpu_summary}",
+                )
+                if has_official
+                else tr(
+                    f"预计余额 · 实例：{gpu_summary}",
+                    f"Est. Balance · Instances: {gpu_summary}",
+                )
+            )
+        else:
+            self.cu_title_lbl.setText(
+                tr("账户余额", "CU Balance") if self.vm.official_cu_balance is not None else tr("预计余额", "Est. Balance")
+            )
         self.cu_val_lbl.setText(f"{self.vm.display_remaining_cu:.2f} CU")
         burn = self.vm.display_burn_rate
         self.burn_val_lbl.setText(f"{burn:.2f} CU/h")
