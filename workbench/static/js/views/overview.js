@@ -1,21 +1,20 @@
 // 概览：需要你处理、四个指标、实例卡片、账号条
 import { STATUS, STEPS, attention, bar, dur, esc, hoursLeft, icon, isLLM, numTag, pct, sloChecks, sparkline, ui } from "../util.js";
 import { bestCell } from "../sheets/launch.js";
+import { failButton, failLinks, failLog } from "./failure.js";
 
 const LIVE = ["running", "starting", "stopping"];
 const sum = (xs, f) => xs.reduce((s, x) => s + (Number(f(x)) || 0), 0);
 const pctAt = (v, max) => `${Math.min(Math.max((v / max) * 100, 0), 100).toFixed(1)}%`;
 
 /* ---------- 需要你处理 ---------- */
-const btn = (a) => `<button class="btn sm ${esc(a.tone)}" ${esc(a.attr)}="${esc(a.value)}">${esc(a.label)}</button>`;
-
 function attn(list) {
   if (!list.length) return "";
   const sev = list.some((x) => x.sev === "err") ? "err" : "warn";
   const rows = list.map((a) => `<div class="ov-att-row ${a.sev}" data-key="${esc(a.key)}">
     <span class="ov-ic">${icon(a.sev === "err" ? "circle-x" : "triangle-alert")}</span>
-    <div class="grow"><div class="ov-att-t">${esc(a.title)}</div><div class="ov-att-s">${esc(a.sub)}</div></div>
-    <div class="ov-acts">${a.actions.map(btn).join("")}</div></div>`).join("");
+    <div class="grow"><div class="ov-att-t">${esc(a.title)}</div><div class="ov-att-s">${esc(a.sub)}</div>${a.hint ? `<div class="ov-att-h">${esc(a.hint)}</div>` : ""}</div>
+    <div class="ov-acts">${failLinks(a.links)}${a.actions.map(failButton).join("")}</div>${failLog(a.id, a.log)}</div>`).join("");
   return `<section class="panel ov-att ${sev}" data-key="sec-attn" aria-label="需要你处理">
     <div class="panel-h">${icon(sev === "err" ? "circle-x" : "triangle-alert")}需要你处理<span class="badge ${sev}">${list.length}</span></div>
     <div data-list>${rows}</div></section>`;

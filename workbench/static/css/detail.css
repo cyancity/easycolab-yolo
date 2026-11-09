@@ -86,4 +86,10 @@
 /* 横幅内放处理按钮，窄时按钮换到下一行靠右 */
 .dt-banner { flex-wrap: wrap; }
 .dt-banner .dt-banner-t { flex: 1 1 var(--space-64); }
-.dt-banner > .btn { margin-left: auto; }
+.dt-banner-t { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.dt-banner-t b { font-weight: var(--font-weight-semibold); }
+.dt-err { font-size: var(--text-caption); line-height: var(--text-caption--line-height); overflow-wrap: anywhere; opacity: .85; }
+.dt-hint { font-size: var(--text-body-sm); }
+.dt-banner-acts { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* 失败前日志：等宽、可滚动、长行折行 */
+.fail-log { margin: 0; max-height: var(--space-80); white-space: pre-wrap; overflow-wrap: anywhere; }

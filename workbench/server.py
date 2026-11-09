@@ -1,12 +1,13 @@
 """工作台 HTTP 服务：/ 网页（PWA）、/api 管理接口、/v1 模型网关。只监听 127.0.0.1。"""
 import time
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import accounts, catalog, deployments, gateway, model_docs, monitor
+from . import accounts, catalog, deployments, failures, gateway, model_docs, monitor
 from .keys import gateway_key, mask_key, redact
 from .paths import STATIC_DIR
 
@@ -80,13 +81,20 @@ def _account_view(email: str) -> dict:
     return view
 
 
-def _instance_view(d: dict) -> dict:
+def _fail_view(d: dict, orphans: dict) -> dict:
+    """失败实例的归类：余额和资格取自账号缓存，未纳管实例数决定要不要给「释放」入口"""
+    ccu = (monitor.ACCOUNT_CACHE.get(d["email"]) or {}).get("ccu") or {}
+    hf = ((model_docs.get_docs()["docs"].get(d["model"])) or {}).get("hf", "")
+    return failures.classify(d, hf=hf, orphans=orphans.get(d["email"], 0), cu=_num(ccu.get("currentBalance")))
+
+
+def _instance_view(d: dict, orphans: Optional[dict] = None) -> dict:
     m = catalog.BY_ID[d["model"]]
     t = d.get("tele") or {}
     gpu_t = t.get("gpu") if isinstance(t.get("gpu"), dict) else {}
     up = _int(t.get("uptime_seconds") or ((d.get("stopped_at") or time.time()) - d["created_at"]))
     comfy = d.get("comfy_url") or ""
-    return {
+    view = {
         "id": d["id"], "email": d["email"], "label": accounts.mask(d["email"]), "model": d["model"],
         "name": m["name"], "kind": m["kind"], "gpu": t.get("gpu_name") or d["gpu"], "gpu_req": d["gpu"],
         "status": d["status"], "step": d["step"], "step_text": redact(d.get("step_text", "")), "error": redact(d.get("error", "")),
@@ -102,6 +110,9 @@ def _instance_view(d: dict) -> dict:
         "has_url": bool(d.get("url")),
         "models": [x["id"] for x in gateway.instance_models(d) if x.get("loaded")] if d["status"] == "running" else [],
     }
+    if d["status"] in ("failed", "release_failed"):
+        view["fail"] = _fail_view(d, orphans or {})
+    return view
 
 
 def _orphans(deps: list) -> list:
@@ -122,10 +133,14 @@ def state():
     deps = deployments.all_deps()
     recent = [d for d in deps if d["status"] in deployments.ACTIVE or time.time() - (d.get("stopped_at") or d["created_at"]) < 6 * 3600]
     recent.sort(key=lambda d: (d["status"] not in deployments.ACTIVE, -d["created_at"]))
+    orphans = _orphans(deps)
+    by_email: dict = {}
+    for o in orphans:
+        by_email[o["email"]] = by_email.get(o["email"], 0) + 1
     return {
         "slo": catalog.SLO, "gpus": catalog.GPUS, "models": catalog.public_models(),
         "accounts": [_account_view(e) for e in accounts.emails()],
-        "instances": [_instance_view(d) for d in recent] + _orphans(deps),
+        "instances": [_instance_view(d, by_email) for d in recent] + orphans,
         "gateway": {"base": f"http://127.0.0.1:{PORT}/v1", "key_masked": mask_key(gateway_key())},
         "cooldown": deployments.global_cooldown(),
     }

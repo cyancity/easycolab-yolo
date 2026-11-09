@@ -1,5 +1,6 @@
 // 原型样例数据：四个场景的初始状态。字段名和类型对齐真实 /api/state，邮箱和密钥都是假数据
 import { CATALOG } from "./catalog.js";
+import { LOAD_LOG, UNKNOWN_LOG, mkFail } from "./failures.js";
 
 export const SCENARIOS = [["daily", "日常"], ["trouble", "出问题"], ["fresh", "全新"], ["offline", "离线"]];
 export const CUH = { T4: 1.8, L4: 4.8, A100: 11.8, H100: 15, G4: 11.6 };
@@ -96,7 +97,7 @@ function trouble() {
   const jio2 = mkAccount("jiofarm002@example.com", "Jio AI Pro", 0, ["T4"], { note: "无 Colab 计算单元" });
   const jio3 = mkAccount("jiofarm003@example.com", "Jio AI Pro", null, ["T4"], { state: "error", note: "凭据失效" });
   const rel = mkInstance(pro, "zimg", "L4", {
-    id: "i-zimg6", status: "release_failed", step: 5, step_text: "释放失败", _t0: Date.now() - 3000 * 1000, cuh: 4.8,
+    id: "i-zimg6", status: "release_failed", fail: mkFail("release_failed", pro.email, { model: "zimg" }), step: 5, step_text: "释放失败", _t0: Date.now() - 3000 * 1000, cuh: 4.8,
     events: [ev(50, "info", "向 Colab 申请 L4"), ev(49, "ok", "已分配 L4"), ev(8, "info", "收到释放请求"),
       ev(8, "err", "Colab 没有确认释放（HTTP 500）"), ev(7, "warn", "1 分钟后自动重试"), ev(1, "err", "第 2 次释放仍然失败，实例可能还在扣 CU")],
   });
@@ -105,14 +106,40 @@ function trouble() {
     endpoint: "https://orphan-9c2e.tunnel.example.com", _t0: Date.now() - 5400 * 1000,
     events: [ev(0, "warn", "在 Colab 上发现一台不是工作台启动的实例")],
   });
-  const failed = mkInstance(ultra, "q27", "H100", {
-    id: "i-q27f7", status: "failed", step: 1, step_text: "分配失败", _up: 180, _t0: Date.now() - 900 * 1000,
-    error: "Colab 暂时分不出 H100（HTTP 503，已自动重试 3 次）。通常是该型号容量紧张，过几分钟再试，或者先选 A100 或 G4，它们同样放得下这个模型。",
-    events: [ev(15, "info", "向 Colab 申请 H100"), ev(15, "warn", "H100 返回 503，30 秒后重试"), ev(14, "warn", "第 2 次重试仍是 503"),
-      ev(13, "err", "第 3 次重试失败，放弃分配"), ev(13, "ok", "已自动释放，不会继续扣 CU")],
+  // 失败样例：每一类各一台，覆盖后端归类的全部 kind
+  const dead = (id, acct, model, gpu, step, kind, error, events, f = {}) => mkInstance(acct, model, gpu, {
+    id, status: "failed", step, step_text: "", _up: 120 + step * 40, _t0: Date.now() - (600 + step * 120) * 1000, error,
+    fail: mkFail(kind, acct.email, { model, ...f }), events,
   });
+  const asked = (gpu) => [ev(14, "info", `向 Colab 申请 ${gpu}`)];
+  const failed = [
+    dead("i-q27f7", ultra, "q27", "H100", 1, "capacity",
+      "Colab 暂时分不出 H100（HTTP 503，已自动重试 3 次）。通常是该型号容量紧张；若所有付费卡都 503 而 T4 正常，也可能是账号被临时限制。",
+      [...asked("H100"), ev(14, "warn", "H100 返回 503，30 秒后重试"), ev(13, "err", "第 3 次重试失败，放弃分配"), ev(13, "ok", "已自动释放，不会继续扣 CU")]),
+    dead("i-smk01", jio1, "q35-4b-smoke", "T4", 1, "too_many",
+      "Colab 拒绝分配（HTTP 412）：账号下活动实例过多或触发了临时用量限制，先释放其他实例再试。",
+      [...asked("T4"), ev(14, "err", "Colab 拒绝分配（HTTP 412）")], { orphans: 1 }),
+    dead("i-q27e2", pro, "q27", "H100", 1, "not_eligible",
+      "当前账号没有 H100 的使用资格，可用：T4, L4, A100, G4。请换卡或切换到有该资格的账号。", [ev(12, "err", "资格预检未通过，没有发出分配请求")]),
+    dead("i-zimb3", jio2, "zimg", "L4", 1, "no_balance",
+      "当前账号没有 L4 的使用资格，可用：T4。请换卡或切换到有该资格的账号。", [ev(11, "err", "资格预检未通过，没有发出分配请求")]),
+    dead("i-smk04", jio3, "q35-4b-smoke", "T4", 1, "auth",
+      "尚未授权登录 Google 账号，请先点击「绑定账号」", [ev(10, "err", "账号没有有效登录凭据")]),
+    dead("i-ggf05", pro, "q27gguf", "A100", 3, "download",
+      "下载未完成：Hugging Face 返回 401，权重需要先在模型页同意使用协议",
+      [...asked("A100"), ev(13, "ok", "已分配 A100，显存 80 GB"), ev(12, "info", "下载权重 18.7 GB"), ev(9, "err", "下载未完成：Hugging Face 返回 401")]),
+    dead("i-q27l6", ultra, "q27", "G4", 4, "load", "载入失败：CUDA out of memory",
+      [...asked("G4"), ev(30, "ok", "权重就绪"), ev(28, "info", "载入显存，上下文 128K"), ev(26, "err", "载入失败：CUDA out of memory"), ev(26, "ok", "已自动释放，不会继续扣 CU")], { log: LOAD_LOG }),
+    dead("i-qim07", pro, "qimg", "L4", 3, "reclaimed", "实例连续 10 次无响应，可能已被 Colab 回收",
+      [...asked("L4"), ev(13, "info", "下载权重 30.9 GB"), ev(8, "warn", "实例 20 秒无响应"), ev(6, "err", "实例连续 10 次无响应")]),
+    dead("i-fla08", ultra, "flash-next", "A100", 1, "timeout", "分配实例超时", [...asked("A100"), ev(5, "err", "分配实例超时")]),
+    dead("i-zim09", pro, "zimg", "L4", 3, "interrupted", "工作台重启，部署中断",
+      [...asked("L4"), ev(20, "info", "下载权重 30.6 GB"), ev(16, "err", "工作台重启，部署中断"), ev(16, "ok", "已释放未完成的部署实例")]),
+    dead("i-h3x10", ultra, "h3", "G4", 2, "unknown", "唤醒结束但没有拿到服务地址",
+      [...asked("G4"), ev(13, "ok", "已分配 G4，显存 95.6 GB"), ev(11, "info", "部署推理服务"), ev(10, "err", "唤醒结束但没有拿到服务地址")], { log: UNKNOWN_LOG }),
+  ];
   return {
-    accounts: [ultra, pro, jio1, jio2, jio3], instances: [flashNext(ultra), rel, orphan, failed],
+    accounts: [ultra, pro, jio1, jio2, jio3], instances: [flashNext(ultra), rel, orphan, ...failed],
     cooldown: { left: 540, why: "H100 连续 503" },
   };
 }

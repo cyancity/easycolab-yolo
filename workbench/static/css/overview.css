@@ -24,6 +24,8 @@
 .ov-att-row .grow { min-width: var(--space-56); }
 .ov-att-t { font-weight: var(--font-weight-semibold); }
 .ov-att-s { font-size: var(--text-caption); line-height: var(--text-caption--line-height); color: var(--muted-foreground); }
+.ov-att-h { margin-top: var(--space-1); font-size: var(--text-body-sm); }
+.ov-att-row .fail-log { flex: 1 1 100%; }
 .ov-acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* 指标 */

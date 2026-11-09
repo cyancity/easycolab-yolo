@@ -52,7 +52,7 @@ export const ui = {
   offline: false, loading: true,
   collapsed: new Set(["ended"]),
   dismissed: new Set(stored(DISMISS_KEY)),
-  confirm: null, msel: null, docs: null, gen: {}, tplOpen: {}, resetScroll: false,
+  confirm: null, logOpen: new Set(), msel: null, docs: null, gen: {}, tplOpen: {}, resetScroll: false,
 };
 
 export function toast(msg, kind = "") {
@@ -91,6 +91,16 @@ export function sloChecks(i) {
   return out;
 }
 
+// 失败实例能做的事，第一个是主按钮。容量、资格类失败里「重新部署」就是换卡或换账号，所以只留一个按钮
+export function failActions(i) {
+  const f = i.fail, acts = f?.actions || ["redeploy"], out = [];
+  if (acts.includes("relogin")) out.push({ label: "重新登录", attr: "data-relogin", value: i.email });
+  if (acts.includes("release_orphans")) out.push({ label: `释放 ${f.orphans} 台未纳管实例`, attr: "data-release-orphans", value: i.email });
+  if (i.model) out.push({ label: acts.includes("switch") ? "换卡或换账号" : "重新部署", attr: "data-redeploy", value: i.id });
+  if (acts.includes("logs")) out.push({ label: ui.logOpen.has(i.id) ? "收起日志" : "查看失败前日志", attr: "data-fail-log", value: i.id });
+  return out.map((a, n) => ({ ...a, tone: n === 0 && a.attr !== "data-fail-log" ? "primary" : "" }));
+}
+
 // 需要处理的事，固定顺序：释放失败、未纳管、部署失败、登录失效、冷却、没达标
 export function attention(data, dismissed = new Set()) {
   const g = { release: [], orphan: [], failed: [], login: [], cooldown: [], slo: [] };
@@ -103,9 +113,10 @@ export function attention(data, dismissed = new Set()) {
       g.orphan.push({ key: `orphan-${i.id}`, sev: "err", kind: "orphan", id: i.id, title: `有一台 ${i.gpu} 不是工作台启动的，正在扣 CU`, sub: where(i),
         actions: [{ label: "释放", attr: "data-orphan", value: `${i.email}|${i.endpoint}`, tone: "danger" }] });
     } else if (i.status === "failed" && !dismissed.has(i.id)) {
-      const why = String(i.error || "").split("。")[0];
+      const why = i.fail?.title || String(i.error || "").split("。")[0];
       g.failed.push({ key: `failed-${i.id}`, sev: "warn", kind: "failed", id: i.id, title: `${i.name} 部署失败`, sub: `${where(i)}${why ? " · " + why : ""}`,
-        actions: [{ label: "重新部署", attr: "data-redeploy", value: i.id, tone: "primary" }, { label: "知道了", attr: "data-dismiss", value: i.id, tone: "" }] });
+        hint: i.fail?.hint || "", links: i.fail?.links || [], log: ui.logOpen.has(i.id) ? i.fail?.log : null,
+        actions: [...failActions(i), { label: "知道了", attr: "data-dismiss", value: i.id, tone: "" }] });
     } else if (i.status === "running") {
       const bad = sloChecks(i).filter((c) => c.ok === false);
       if (bad.length) {

@@ -16,11 +16,23 @@ export function newLaunch(model = null) {
   ui.launch = { step: 1, dir: 1, model: ok ? model : ui.data.models.find((m) => m.ready)?.id, email: null, gpu: null, ctx: null, rec: null, busy: false };
 }
 
+// 这类失败换卡或换账号才有意义，重新部署时把失败的那一格排除
+const AVOID = new Set(["capacity", "not_eligible", "no_balance"]);
+
+// 失败实例重新部署：同一个模型，直接到第 2 步；容量、资格类失败避开原来的账号和显卡
+export function redeploy(i) {
+  newLaunch(i.model);
+  ui.launch.avoid = AVOID.has(i.fail?.kind) ? `${i.email}|${i.gpu_req}` : null;
+  recommend();
+  ui.launch.step = 2;
+}
+
 function cellState(m, a, g) {
   if (!a.eligible?.includes(g.id)) return ["no", "无资格"];
   if (!m.fit?.[g.id]) return ["no", "放不下"];
   if (g.id !== "T4" && !(a.cu > 0)) return ["no", "无余额"];
   if (a.cooldown?.[g.id]) return ["no", `冷却 ${Math.ceil(a.cooldown[g.id] / 60)} 分`];
+  if (ui.launch?.avoid === `${a.email}|${g.id}`) return ["no", "刚失败"];
   return null;
 }
 

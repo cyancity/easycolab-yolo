@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 import requests
 
-from . import accounts, catalog
+from . import accounts, catalog, failures
 from .keys import gateway_key, redact, write_private
 from .paths import APP_PY, BRIDGE, DEPLOYMENTS_FILE
 
@@ -244,6 +244,7 @@ def _run(d: dict):
                 d["status"], d["error"] = "failed", redact(str(e))[:300]
         if was_starting:
             event(d, "err", d["error"])
+            _keep_evidence(d)
             _release(d, reason="部署失败，已自动释放实例，避免空耗 CU")
     finally:
         _kill_proc(d.get("_proc"))
@@ -251,6 +252,16 @@ def _run(d: dict):
             # 取消时桥接子进程可能在 stop 之后才写入 session，这里补一次释放
             _release(d, reason="已释放实例（取消后补释放）")
         _save()
+
+
+def _keep_evidence(d: dict):
+    """失败后释放前留一份实例日志（释放后实例就没了）；取不到不影响释放，随后的 _release 会落盘"""
+    try:
+        lines = failures.capture_log(d)
+    except Exception:  # noqa: BLE001
+        return _log("取失败前日志出错：" + traceback.format_exc())
+    with _lock:
+        d["fail_log"] = lines
 
 
 def _kill_proc(p):

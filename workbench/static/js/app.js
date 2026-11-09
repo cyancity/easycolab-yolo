@@ -9,7 +9,7 @@ import { viewAccounts } from "./views/accounts.js";
 import { tplRef, viewModels } from "./views/models.js";
 import { callCode } from "./callcode.js";
 import { genHandlers } from "./views/generate.js";
-import { newLaunch, recommend, renderLaunch } from "./sheets/launch.js";
+import { newLaunch, recommend, redeploy, renderLaunch } from "./sheets/launch.js";
 import { renderLogin } from "./sheets/login.js";
 
 const TITLES = { overview: "概览", instances: "实例", accounts: "账号", models: "模型" };
@@ -154,7 +154,7 @@ const handlers = {
     await copy(callCode(model, tpl, ui.data.gateway.base, await api.gatewayKey()));
     toast("已复制，含完整密钥", "ok");
   }),
-  pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.email = ui.launch.gpu = ui.launch.rec = null; },
+  pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.email = ui.launch.gpu = ui.launch.rec = ui.launch.avoid = null; },
   cell: (t) => { [ui.launch.email, ui.launch.gpu] = t.dataset.cell.split("|"); },
   ctx: (t) => { ui.launch.ctx = Number(t.dataset.ctx); },
   next: () => { direct(ui.launch.step + 1); if (ui.launch.step === 2 && !ui.launch.gpu) recommend(); },
@@ -188,7 +188,12 @@ const handlers = {
   },
   orphan: (t) => { const [e, ep] = t.dataset.orphan.split("|"); act(() => api.stopOrphan(e, ep), "已释放"); },
   bench: (t) => act(() => api.rebench(t.dataset.bench), "自测完成"),
-  redeploy: (t) => { newLaunch(inst(t.dataset.redeploy).model); recommend(); direct(2); },
+  redeploy: (t) => redeploy(inst(t.dataset.redeploy)),
+  failLog: (t) => { const id = t.dataset.failLog; ui.logOpen.has(id) ? ui.logOpen.delete(id) : ui.logOpen.add(id); },
+  releaseOrphans: (t) => {
+    const list = ui.data.instances.filter((x) => x.status === "orphan" && x.email === t.dataset.releaseOrphans);
+    act(async () => { for (const o of list) await api.stopOrphan(o.email, o.endpoint); }, "已释放");
+  },
   dismiss: (t) => {
     ui.dismissed.add(t.dataset.dismiss);
     localStorage.setItem(DISMISS_KEY, JSON.stringify([...ui.dismissed]));

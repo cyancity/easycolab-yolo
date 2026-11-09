@@ -1,6 +1,7 @@
 // 实例详情：instances.js 提供 .detail 容器，这里返回它的内部 HTML。纯函数，只读 ui
-import { STATUS, STEPS, dur, esc, icon, isLLM, num, numTag, pct, snippet, sloChecks, sparkline, ui } from "../util.js";
+import { STATUS, STEPS, dur, esc, failActions, icon, isLLM, num, numTag, pct, snippet, sloChecks, sparkline, ui } from "../util.js";
 import { genPanel } from "./generate.js";
+import { failButton, failLinks, failLog } from "./failure.js";
 
 const spin = (name) => icon(name, "spin");
 const slo = () => ui.data.slo;
@@ -140,7 +141,16 @@ function progress(i) {
 
 /* ---------- 横幅 ---------- */
 const banner = (tone, ic, text, btn) =>
-  `<div class="banner dt-banner ${tone}" data-key="d-banner" role="${tone === "err" ? "alert" : "status"}">${icon(ic)}<span class="grow dt-banner-t">${text}</span>${btn}</div>`;
+  `<div class="banner dt-banner ${tone}" data-key="d-banner" role="${tone === "err" ? "alert" : "status"}">${icon(ic)}<span class="grow dt-banner-t">${text}</span>${btn ? `<span class="dt-banner-acts">${btn}</span>` : ""}</div>`;
+
+// 失败横幅：归类标题、原始错误、下一步提示，右侧是外链和按钮；日志展开后另起一块
+function failBanner(i) {
+  const f = i.fail, id = esc(i.id);
+  if (!f) return banner("err", "circle-x", esc(i.error), i.model ? `<button class="btn" data-redeploy="${id}">${icon("rotate-ccw")}重新部署</button>` : "");
+  const text = `<b>${esc(f.title)}</b>${i.error ? `<span class="dt-err">${esc(i.error)}</span>` : ""}<span class="dt-hint">${esc(f.hint)}</span>`;
+  return banner("err", "circle-x", text, failLinks(f.links) + failActions(i).map(failButton).join(""))
+    + failLog(i.id, ui.logOpen.has(i.id) ? f.log : null);
+}
 
 export function detail(i) {
   const id = esc(i.id), top = head(i);
@@ -149,10 +159,10 @@ export function detail(i) {
       return top + sloBar(i) + stats(i) + headroom(i) + genPanel(i) + `<div class="two" data-key="d-two">${apiPanel(i)}${events(i)}</div>`;
     case "starting": return top + progress(i) + events(i);
     case "failed":
-      return top + banner("err", "circle-x", esc(i.error), i.model ? `<button class="btn" data-redeploy="${id}">${icon("rotate-ccw")}重新部署</button>` : "") + events(i);
+      return top + failBanner(i) + events(i);
     case "release_failed":
       return top + banner("err", "circle-x", "Colab 没有确认释放，实例可能仍在消耗 CU。工作台每分钟自动重试，也可以手动重试或去 Colab 网页确认。",
-        `<button class="btn danger" data-stop="${id}">${icon("rotate-ccw")}重试释放</button>`) + events(i);
+        failLinks(i.fail?.links) + `<button class="btn danger" data-stop="${id}">${icon("rotate-ccw")}重试释放</button>`) + events(i);
     case "orphan":
       return top + banner("warn", "info", `这台 ${esc(i.gpu)} 不是工作台部署的（可能来自旧客户端），仍在消耗 CU。`,
         `<button class="btn danger" data-orphan="${esc(i.email)}|${esc(i.endpoint)}">${icon("square")}释放</button>`);
