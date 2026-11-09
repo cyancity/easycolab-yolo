@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 import requests
 
-from . import accounts, catalog, failures
+from . import accounts, catalog, failures, selftest
 from .keys import gateway_key, redact, write_private
 from .paths import APP_PY, BRIDGE, DEPLOYMENTS_FILE
 
@@ -30,6 +30,8 @@ _cooldown: Dict[tuple, float] = {}  # (email, gpu) -> 可再次申请的时间�
 COOLDOWN_S = 600
 RELEASE_EVERY = 60  # 释放失败后的重试间隔（秒）
 RELEASE_TRIES = 10
+# 部署参数 probe=true：只发 1 次分配请求，不带 shape=hm（排查 503 用）
+PROBE_ENV = {"COLAB_FLEET_HIGH_MEM": "0", "COLAB_CLI_ASSIGN_RETRIES": "0"}
 # Colab 限流可能按出口 IP 计：任一账号被拒后，所有账号一起暂停分配，避免被判定为滥用
 _global = {"until": 0.0, "why": ""}
 # 不落盘的运行时字段；以下划线开头的键（子进程句柄、重试计数等）同样不落盘
@@ -283,9 +285,10 @@ def _kill_proc(p):
 
 def _wake(d: dict):
     home = accounts.home_of(d["email"])
+    env = {**accounts.bridge_env(home), **(PROBE_ENV if d["params"].get("probe") else {})}
     cmd = [sys.executable, str(BRIDGE), "wake", "--gpu", d["gpu"], "--session", d["session"], "--app-py", str(APP_PY)]
     extra = {} if sys.platform == "win32" else {"start_new_session": True}
-    p = subprocess.Popen(cmd, env=accounts.bridge_env(home), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    p = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True, encoding="utf-8", errors="replace", **extra)
     with _lock:  # 与 stop() 互相可见：要么 stop 看到句柄，要么这里看到已取消
         d["_proc"], d["pid"] = p, p.pid
@@ -376,42 +379,16 @@ def _comfy(d: dict):
 def bench(d: dict):
     """真实请求一次，测单流解码速度和首字延迟；失败只记警告，绝不让已载入的实例失败或被释放"""
     try:
-        _bench(d)
+        res = selftest.measure(d)
     except Exception as e:  # noqa: BLE001
         event(d, "warn", f"自测失败：{e}")
-
-
-def _bench(d: dict):
-    from .gateway import instance_models  # 避免循环引用
-    ids = [x["id"] for x in instance_models(d) if x.get("loaded")]
-    if not ids:
-        event(d, "warn", "没有已载入的语言模型，跳过自测")
         return
-    body = {"model": ids[0], "stream": True, "max_tokens": 400,
-            "messages": [{"role": "user", "content": "用中文详细介绍一下 GPU 显存带宽对大模型推理速度的影响，至少 400 字。"}]}
-    t0, first, n = time.time(), None, 0
-    with requests.post(d["url"].rstrip("/") + "/v1/chat/completions", json=body, stream=True, timeout=300,
-                       headers={"Authorization": "Bearer " + gateway_key()}) as r:
-        r.raise_for_status()
-        for line in r.iter_lines(decode_unicode=True):
-            if not line or not line.startswith("data:") or line.strip() == "data: [DONE]":
-                continue
-            try:
-                delta = json.loads(line[5:])["choices"][0].get("delta", {})
-            except Exception:  # noqa: BLE001
-                continue
-            if delta.get("content") or delta.get("reasoning_content"):
-                n += 1
-                first = first or time.time()
-    end = time.time()
-    if not first or n < 2:
-        event(d, "warn", "自测没有收到输出")
+    if isinstance(res, str):
+        event(d, "warn", res)
         return
-    tps = round((n - 1) / max(end - first, 1e-3), 1)
-    d["bench"] = {"tps": tps, "ttft": round(first - t0, 2), "tokens": n, "at": time.time(),
-                  "ctx": int((d.get("tele") or {}).get("loaded_context_length") or 0)}
-    ok = tps >= catalog.SLO["tpsMin"]
-    event(d, "ok" if ok else "warn", f"自测：单流 {tps} tok/s，首字 {d['bench']['ttft']} s")
+    d["bench"] = res
+    ok = res["tps"] >= catalog.SLO["tpsMin"]
+    event(d, "ok" if ok else "warn", f"自测：单流 {res['tps']} tok/s，首字 {res['ttft']} s")
 
 
 # ---------- 停止与释放 ----------

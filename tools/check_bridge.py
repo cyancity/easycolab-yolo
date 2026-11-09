@@ -21,6 +21,10 @@ from collections import Counter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PRE_SPLIT_REV = "967d23f"
+# 拆分后有意改动的定义：名字 -> 原因。这些跳过 AST 对比，其余仍须与旧版一致
+INTENDED = {
+    "_allocate_fresh_session": "COLAB_FLEET_HIGH_MEM=0 时不带 shape=hm（排查 503 的单次探测）",
+}
 
 
 def read(path):
@@ -88,7 +92,7 @@ def static_check(old_text, errors):
     for nm, dump in old_defs.items():
         if len(where.get(nm, [])) != 1:
             errors.append(f"名字 {nm} 在 bridge/ 里定义了 {len(where.get(nm, []))} 次：{where.get(nm)}")
-        elif nm not in ("cmd_wake", "main") and new_defs[nm] != dump:
+        elif nm not in ("cmd_wake", "main") and nm not in INTENDED and new_defs[nm] != dump:
             errors.append(f"{nm} 的 AST 与旧版不一致")
     for nm, ms in where.items():
         if len(ms) > 1:

@@ -1,4 +1,5 @@
 """GPU 型号解析、资格预检、分配实例与容器就绪探测。"""
+import os
 import time
 import uuid
 
@@ -97,7 +98,9 @@ def _explain_assign_error(accel: Accelerator, err: Exception) -> str:
 def _allocate_fresh_session(session_name: str, gpu_type: str) -> SessionState:
     accel = _resolve_gpu_accel(gpu_type)
     _check_gpu_eligible(accel)
-    shape = None if accel in SINGLE_SHAPE_GPUS else resolve_assign_shape(accel, high_mem=True)
+    # COLAB_FLEET_HIGH_MEM=0 时不带 shape=hm（官方 CLI 默认也不带），工作台单次探测 503 原因时用
+    high_mem = os.environ.get("COLAB_FLEET_HIGH_MEM", "1") != "0"
+    shape = None if accel in SINGLE_SHAPE_GPUS or not high_mem else resolve_assign_shape(accel, high_mem=True)
     gpu_desc = "G4 (RTX PRO 6000 · 96GB)" if accel == Accelerator.G4 else accel.value
     print(f"WAKE_LOG: 🚀 正在向 Google Colab 申请分配 {gpu_desc} 实例...", flush=True)
     try:
