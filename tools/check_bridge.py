@@ -32,6 +32,18 @@ def read(path):
         return f.read()
 
 
+def own_returns(fn):
+    """函数体（不含嵌套函数和类）里有没有带值的 return"""
+    stack = list(fn.body)
+    while stack:
+        n = stack.pop()
+        if isinstance(n, ast.Return) and n.value is not None:
+            return True
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            stack.extend(ast.iter_child_nodes(n))
+    return False
+
+
 def bridge_modules():
     d = os.path.join(ROOT, "bridge")
     return {fn[:-3]: read(os.path.join(d, fn)) for fn in sorted(os.listdir(d)) if fn.endswith(".py")}
@@ -133,6 +145,13 @@ def static_check(old_text, errors):
     boot_new = next(n.value.value for n in trees["boot"].body if isinstance(n, ast.Assign))
     if boot_old != boot_new:
         errors.append("BOOT_CODE 与旧版 boot_code 不一致")
+    # cmd_wake 用了返回值的函数必须自己 return 值（拆分时漏过 run_boot_script 的 return outputs，部署全部卡在第 2 步）
+    used = {n.value.func.id for n in ast.walk(find_func(trees["wake"], "cmd_wake"))
+            if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Name)}
+    for m, t in trees.items():
+        for fn in t.body:
+            if isinstance(fn, ast.FunctionDef) and fn.name in used and not own_returns(fn):
+                errors.append(f"{m}.{fn.name} 的返回值被 cmd_wake 使用，但函数本身没有 return 值")
     # 字符串多重集
     new_cnt = Counter()
     for t in list(trees.values()) + [ast.parse(read(os.path.join(ROOT, "colab_bridge.py")))]:

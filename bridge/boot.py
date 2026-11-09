@@ -160,3 +160,4 @@ def run_boot_script(target_session):
         target_session.kernel_id = None
         target_session.session_id = None
         outputs = _run_boot_on_runtime(use_saved_kernel=False)
+    return outputs
