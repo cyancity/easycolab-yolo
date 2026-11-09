@@ -10,6 +10,8 @@ on:
       - "windows_app/**"
       - "colab_bridge.py"
       - "app.py"
+      - "colab_server/**"
+      - "runtime/**"
       - "EasyColab_Server.ipynb"
       - ".github/workflows/build-windows.yml"
     tags:

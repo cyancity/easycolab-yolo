@@ -19,6 +19,14 @@ for res_file in "app.py" "colab_bridge.py" "EasyColab_Server.ipynb" "requirement
         cp -f "${PROJECT_ROOT}/${res_file}" "${RESOURCES_DIR}/${res_file}"
     fi
 done
+# app.py 是薄入口：服务端逻辑在 colab_server/ 包里；runtime/ 是随 app.py 上传的附加模块。桥接按 app.py 同目录查找它们
+for res_dir in "colab_server" "runtime"; do
+    if [ -d "${PROJECT_ROOT}/${res_dir}" ]; then
+        rm -rf "${RESOURCES_DIR}/${res_dir}"
+        cp -R "${PROJECT_ROOT}/${res_dir}" "${RESOURCES_DIR}/${res_dir}"
+        find "${RESOURCES_DIR}/${res_dir}" -name "__pycache__" -type d -prune -exec rm -rf {} +
+    fi
+done
 
 # 1. 生成 Info.plist
 cat > "${CONTENTS_DIR}/Info.plist" <<EOF

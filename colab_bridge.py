@@ -768,6 +768,17 @@ def cmd_wake(gpu_type: str, app_py_path: str, session: str = ""):
             if name.endswith(".py"):
                 contents.upload(os.path.join(rt_dir, name), "content/" + name)
 
+        # app.py 是薄入口，逻辑在同目录的 colab_server/ 包里。Jupyter contents 接口不会自动建目录，
+        # 所以包文件先以平铺名 colab_server__<模块>.py 传到 /content，启动脚本再装回 /content/colab_server/
+        pkg_local = os.path.join(os.path.dirname(os.path.abspath(app_py_path)), "colab_server")
+        pkg_files = sorted(n for n in os.listdir(pkg_local) if n.endswith(".py")) if os.path.isdir(pkg_local) else []
+        with open(app_py_path, "r", encoding="utf-8") as _af:
+            uses_pkg = re.search(r"^from colab_server\b", _af.read(), re.M) is not None
+        if uses_pkg and not pkg_files:
+            raise RuntimeError("app.py 依赖 colab_server/ 包，但 %s 不存在或为空" % pkg_local)
+        for name in pkg_files:
+            contents.upload(os.path.join(pkg_local, name), "content/colab_server__" + name)
+
         rclone_conf_text = _build_rclone_drive_conf()
         if rclone_conf_text:
             import tempfile
@@ -868,6 +879,14 @@ for _ in range(10):
     if _probe.returncode != 0:
         break
     time.sleep(1)
+
+# 2.5 把平铺上传的包文件装回 /content/colab_server/（先清掉旧版本，避免残留已删除的模块）
+_pkg_files = sorted(f for f in os.listdir("/content") if f.startswith("colab_server__") and f.endswith(".py"))
+if _pkg_files:
+    shutil.rmtree("/content/colab_server", ignore_errors=True)
+    os.makedirs("/content/colab_server")
+    for _f in _pkg_files:
+        shutil.move("/content/" + _f, "/content/colab_server/" + _f[len("colab_server__"):])
 
 # 3. 后台启动 /content/app.py 并等待 gradio.live 链接生成
 log_path = "/content/easycolab_server.log"

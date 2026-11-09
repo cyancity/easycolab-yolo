@@ -316,6 +316,12 @@ def copy_app_sources_and_resources() -> None:
     shutil.copy2(WIN_APP_DIR / "easycolab_win.py", INTERNAL_DIR / "easycolab_win.py")
     for res_name in ("app.py", "colab_bridge.py", "EasyColab_Server.ipynb"):
         shutil.copy2(REPO_ROOT / res_name, INTERNAL_DIR / res_name)
+    # Colab 服务端包与运行时模块：桥接唤醒时会随 app.py 一起上传
+    for pkg in ("colab_server", "runtime"):
+        dst = INTERNAL_DIR / pkg
+        dst.mkdir(parents=True, exist_ok=True)
+        for py_file in (REPO_ROOT / pkg).glob("*.py"):
+            shutil.copy2(py_file, dst / py_file.name)
 
     # Copy windows_app package
     dst_pkg = INTERNAL_DIR / "windows_app"
