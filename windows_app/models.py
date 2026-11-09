@@ -1137,9 +1137,21 @@ def mask_email_display(email: str, mask_enabled: bool) -> str:
         return ""
     if not mask_enabled or "@" not in email:
         return email
-    local, domain = email.split("@", 1)
-    prefix = local[:2] if len(local) >= 2 else local[:1]
-    return f"{prefix}•••@{domain}"
+    # 打码只保留整串前 3 个与后 3 个字符（含域名），中间隐藏，避免域名泄露邮箱服务商
+    if len(email) <= 6:
+        return f"{email[:2]}•••"
+    return f"{email[:3]}•••{email[-3:]}"
+
+
+def mask_secret_display(secret: str, mask_enabled: bool) -> str:
+    """API Key 等密钥的展示打码：保留前 3 后 3 字符，中间隐藏；关闭打码时原样返回"""
+    if not secret:
+        return ""
+    if not mask_enabled:
+        return secret
+    if len(secret) <= 6:
+        return f"{secret[:2]}•••"
+    return f"{secret[:3]}•••{secret[-3:]}"
 
 
 def get_project_or_bundle_root() -> Path:
