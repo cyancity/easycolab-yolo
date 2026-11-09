@@ -180,6 +180,7 @@
   --space-80: 20rem;
   --space-96: 24rem;
   --list-w: 22rem;
+  --list-w-min: 15rem;              /* 窄窗口下分栏左列的下限 */
   --sheet-w: 64rem;
   --sheet-w-narrow: 32rem;
   --toast-w: 22rem;

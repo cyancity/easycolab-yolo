@@ -1,1 +1,89 @@
-/* 实例详情与生成：由视图写手填写 */
+/* 实例详情（dt-*）：只引用 tokens.css 的变量；1~3px 线宽除外。窄容器靠换行和 components.css 的 .two 容器查询 */
+
+.dt-title { min-width: 0; flex: 1 1 var(--space-56); }
+.dt-head h2 { overflow-wrap: anywhere; }
+
+/* 达标条 */
+.dt-slo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); padding: var(--space-3) var(--space-4); }
+.dt-sum { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: var(--font-weight-semibold); color: var(--muted-foreground); }
+.dt-sum svg.lucide { width: var(--icon-lg); height: var(--icon-lg); }
+.dt-sum.ok { color: var(--success); }
+.dt-sum.warn { color: var(--warning); }
+.dt-checks { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.dt-chk { height: var(--control-h-sm); padding: 0 var(--space-3); gap: var(--space-1-5); font-size: var(--text-body-sm); }
+.dt-chk svg.lucide { width: var(--icon-sm); height: var(--icon-sm); }
+.dt-chk b { font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; }
+.dt-chk .dt-line { opacity: 0.75; }
+.dt-chk .dt-line::before { content: "·"; margin-right: var(--space-1-5); }
+
+/* 指标：用 1px 间隙当分隔线，换行后每行铺满，没有空格子 */
+.stats.dt-stats { flex: none; display: flex; flex-wrap: wrap; gap: 1px; background: var(--border); overflow: hidden; }
+.dt-stats .stat { flex: 1 1 var(--space-32); min-width: 0; background: var(--card); border-right: 0; }
+.dt-stats .stat .v { display: block; }
+.dt-stats .stat .v small { display: block; margin: 0; font-size: var(--text-caption); line-height: var(--text-caption--line-height); }
+.dt-stats .spark { margin-top: auto; }
+
+/* 余量 */
+.dt-room { box-shadow: inset 3px 0 0 var(--warning); }
+.dt-room .panel-h { flex-wrap: wrap; }
+.dt-room .panel-h svg.lucide { color: var(--warning); }
+.dt-room .panel-h .right { font-size: var(--text-body-sm); }
+.dt-opt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); padding: var(--space-3) var(--space-4); }
+.dt-opt + .dt-opt { border-top: 1px solid var(--border); }
+.dt-opt-t { flex: 1 1 var(--space-64); min-width: 0; }
+.dt-what { font-weight: var(--font-weight-medium); }
+.dt-why { color: var(--muted-foreground); font-size: var(--text-body-sm); }
+.dt-opt .btn { flex: none; }
+
+/* 接入 */
+.dt-api .panel-h { flex-wrap: wrap; }
+.dt-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.dt-api-b { display: grid; gap: var(--space-4); }
+.dt-api-b > * { min-width: 0; }
+
+/* 过程时间线：时间 + 图标 + 文字，图标之间连线 */
+.dt-tl { display: flex; flex-direction: column; padding-block: var(--space-2); }
+.two .dt-tl { max-height: var(--space-96); overflow: auto; }
+.dt-ev { position: relative; display: grid; grid-template-columns: var(--space-16) var(--icon) minmax(0, 1fr); gap: var(--space-2); align-items: center; padding-block: var(--space-2); }
+.dt-ev::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-strong);
+  left: calc(var(--space-16) + var(--space-2) + var(--icon) / 2);
+}
+.dt-ev:first-child::after { top: 50%; }
+.dt-ev:last-child::after { bottom: 50%; }
+.dt-ev:only-child::after { display: none; }
+.dt-ev time { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--subtle-foreground); white-space: nowrap; }
+.dt-ev svg.lucide { position: relative; z-index: 1; background: var(--card); color: var(--subtle-foreground); }
+.dt-ev.ok svg.lucide { color: var(--success); }
+.dt-ev.warn svg.lucide { color: var(--warning); }
+.dt-ev.err svg.lucide { color: var(--danger); }
+.dt-msg { font-size: var(--text-body-sm); overflow-wrap: anywhere; }
+.dt-ev.warn .dt-msg { color: var(--warning-soft-foreground); }
+.dt-ev.err .dt-msg { color: var(--danger-soft-foreground); }
+
+/* 部署中：五段进度，段间连线按进度填色 */
+.dt-steps { list-style: none; margin: 0; padding: var(--space-6) var(--space-4) var(--space-4); display: flex; }
+.dt-step { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.dt-node {
+  width: var(--space-10); height: var(--space-10); border-radius: var(--radius-full); display: grid; place-items: center;
+  border: 2px solid var(--border-strong); background: var(--card); color: var(--brand-soft-foreground);
+  transition: background-color var(--duration-slow) var(--ease-out), border-color var(--duration-slow) var(--ease-out), color var(--duration-slow) var(--ease-out);
+}
+.dt-node svg.lucide { width: var(--icon-lg); height: var(--icon-lg); }
+.dt-step.done .dt-node { background: var(--brand); border-color: var(--brand); color: var(--brand-foreground); }
+.dt-step.now .dt-node { background: var(--brand-soft); border-color: var(--brand); }
+.dt-link {
+  position: absolute; top: calc(var(--space-5) - 1px); height: 2px; border-radius: var(--radius-full); background: var(--border);
+  left: calc(-50% + var(--space-5)); width: calc(100% - var(--space-10)); overflow: hidden;
+}
+.dt-link > i { display: block; height: 100%; width: var(--p, 0%); background: var(--brand); transition: width var(--duration-slow) var(--ease-out); }
+.dt-lbl { font-size: var(--text-body-sm); color: var(--subtle-foreground); text-align: center; transition: color var(--duration-slow) var(--ease-out); }
+.dt-step.done .dt-lbl { color: var(--muted-foreground); }
+.dt-step.now .dt-lbl { color: var(--foreground); font-weight: var(--font-weight-medium); }
+.dt-now { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-4); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); }
+.dt-now-t { font-size: var(--text-body-lg); line-height: var(--text-body-lg--line-height); font-weight: var(--font-weight-semibold); }
+
+/* 横幅内放处理按钮，窄时按钮换到下一行靠右 */
+.dt-banner { flex-wrap: wrap; }
+.dt-banner .dt-banner-t { flex: 1 1 var(--space-64); }
+.dt-banner > .btn { margin-left: auto; }

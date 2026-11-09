@@ -139,6 +139,7 @@ const handlers = {
   quick: (t) => { newLaunch(t.dataset.quick); recommend(); direct(ui.launch.gpu ? 3 : 2); },
   modelDeploy: (t) => { newLaunch(t.dataset.modelDeploy); recommend(); direct(2); },
   model: (t) => { ui.msel = t.dataset.model; ui.resetScroll = true; },
+  openModel: (t) => { ui.view = "models"; ui.msel = t.dataset.openModel; ui.resetScroll = true; },
   tplOpen: (t) => { const k = t.dataset.tplOpen; ui.tplOpen[k] = !ui.tplOpen[k]; },
   copyPrompt: (t) => copy(tplRef(t.dataset.copyPrompt).tpl.prompt),
   copyCode: (t) => act(async () => {

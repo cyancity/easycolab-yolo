@@ -45,6 +45,7 @@ const P = {
 export const ICON_NAMES = Object.keys(P);
 
 // 未知名称返回空串，避免渲染出坏标记
-export const icon = (name) => P[name]
-  ? `<svg class="lucide" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name]}</svg>`
+// cls 追加到 svg 上，例如 icon("loader", "spin")
+export const icon = (name, cls = "") => P[name]
+  ? `<svg class="lucide${cls ? " " + cls : ""}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name]}</svg>`
   : "";
