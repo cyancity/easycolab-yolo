@@ -333,6 +333,10 @@ def _push_key(d: dict):
 
 def _download(d: dict, m: dict):
     _step(d, 3)
+    if ((d["params"].get("load") or {}).get("options") or {}).get("quant"):
+        # 下载接口只认默认量化；指定了别的量化时由载入步骤下载，否则会白下一份默认量化 (G4 实测多下 94 GB、4 分钟)
+        event(d, "info", "部署参数指定了量化，权重在载入时下载")
+        return
     st = _api(d, "/minimax_api/download_model", {"model_id": m["app_id"]}, timeout=60)
     if st.get("all_downloaded"):
         event(d, "ok", "权重已在缓存中，跳过下载")
