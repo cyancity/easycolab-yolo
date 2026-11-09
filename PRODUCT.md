@@ -1,4 +1,4 @@
-# EasyColab 工作台
+# Colab Fleet
 
 ## 目的
 给一个人管理 5 个 Google 账号（1 Ultra、1 付费 AI Pro、3 Jio AI Pro）的 Colab GPU，把开源模型部署成外部 agent 直接调用的 API，并把显卡吃满。工作台只负责部署、监控和压榨性能，不做模型试玩。

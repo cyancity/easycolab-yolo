@@ -1,6 +1,5 @@
-# Local macOS Headless Colab Bridge dependencies (used by colab_bridge.py)
-# Note: EasyColab.app automatically bootstraps these in ~/Library/Application Support/EasyColab/venv on first login.
-# Cloud GPU inference dependencies (PyTorch, DiffSynth-Studio, llama.cpp, ComfyUI) are installed automatically on Colab.
+# 本机依赖：bridge（google-colab-cli）与 workbench（FastAPI）。
+# Colab 端依赖（PyTorch、DiffSynth-Studio、llama.cpp、ComfyUI）在 Colab 上自动安装。
 
 google-colab-cli>=0.7.5
 google-auth>=2.28.0

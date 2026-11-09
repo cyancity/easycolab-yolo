@@ -1,0 +1,11 @@
+Colab Fleet
+Copyright 2026 the Colab Fleet authors
+
+This product is derived from EasyColab (https://github.com/wy51ai/easycolab),
+licensed under the Apache License, Version 2.0.
+
+Modified files:
+- colab_server/ and app.py: split and modified from EasyColab's app.py.
+- bridge/ and colab_bridge.py: split and modified from EasyColab's colab_bridge.py.
+- EasyColab_Server.ipynb: regenerated from the files above.
+New in this product: workbench/, runtime/, tools/.
