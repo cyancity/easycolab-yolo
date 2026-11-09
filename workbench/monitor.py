@@ -1,4 +1,4 @@
-"""后台采集：账号余额与云端实例（30 s）、实例运行状态（5 s）、实例保活（80 s）、释放失败重试。"""
+"""后台采集：账号余额与云端实例（30 s）、实例运行状态（5 s）、实例保活（80 s）、释放失败重试、排队等卡。"""
 import subprocess
 import sys
 import threading
@@ -9,7 +9,7 @@ from typing import Dict
 
 import requests
 
-from . import accounts, deployments
+from . import accounts, deployments, waitlist
 from .keys import redact
 from .paths import BRIDGE
 
@@ -117,6 +117,7 @@ def _keepalive(email: str):
 def _instances_loop():
     last_keep: Dict[str, float] = {}
     poll, retry = _safe(_poll, "实例轮询"), _safe(deployments.retry_release, "释放重试")
+    queue = _safe(waitlist.tick, "排队等卡")
     while True:
         try:
             deps = [deployments.get(x["id"]) for x in deployments.all_deps()]
@@ -130,6 +131,7 @@ def _instances_loop():
             for d in deps:  # 释放失败的实例：到点就重试（间隔和次数由 deployments 控制）
                 if d["status"] == "release_failed" and time.time() >= d.get("_next", 0):
                     _pool.submit(retry, d)
+            queue()  # 排队等卡的部署到点再申请一次
             for email in {d["email"] for d in live}:
                 if time.time() - last_keep.get(email, 0) > 80:
                     last_keep[email] = time.time()

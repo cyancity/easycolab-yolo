@@ -1,5 +1,5 @@
 // 实例详情：instances.js 提供 .detail 容器，这里返回它的内部 HTML。纯函数，只读 ui
-import { STATUS, STEPS, dur, esc, failActions, icon, isLLM, num, numTag, pct, snippet, sloChecks, sparkline, ui } from "../util.js";
+import { STATUS, STEPS, dur, esc, failActions, icon, isLLM, num, numTag, pct, snippet, sloChecks, sparkline, ui, waitInfo } from "../util.js";
 import { genPanel } from "./generate.js";
 import { failButton, failLinks, failLog } from "./failure.js";
 
@@ -18,6 +18,8 @@ function actions(i) {
     out.push(`<button class="btn danger ${arm ? "armed" : ""}" data-key="a-stop" data-stop="${id}">${icon("square")}${arm ? "确认停止" : "停止"}</button>`);
   } else if (i.status === "starting") {
     out.push(`<button class="btn danger" data-key="a-cancel" data-stop="${id}">${icon("square")}取消并释放</button>`);
+  } else if (i.status === "waiting") {
+    out.push(`<button class="btn" data-key="a-cancel" data-stop="${id}">${icon("x")}取消排队</button>`);
   } else if (i.status === "stopped" && i.model) {
     out.push(`<button class="btn" data-key="a-redeploy" data-redeploy="${id}">${icon("rotate-ccw")}重新部署</button>`);
   }
@@ -158,6 +160,7 @@ export function detail(i) {
     case "running":
       return top + sloBar(i) + stats(i) + headroom(i) + genPanel(i) + `<div class="two" data-key="d-two">${apiPanel(i)}${events(i)}</div>`;
     case "starting": return top + progress(i) + events(i);
+    case "waiting": return top + banner("warn", "clock", `等卡中${i.wait ? " · " + esc(waitInfo(i.wait)) : ""}`) + events(i);
     case "failed":
       return top + failBanner(i) + events(i);
     case "release_failed":

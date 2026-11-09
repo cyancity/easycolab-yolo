@@ -1,9 +1,9 @@
 // 概览：需要你处理、四个指标、实例卡片、账号条
-import { STATUS, STEPS, attention, bar, dur, esc, hoursLeft, icon, isLLM, numTag, pct, sloChecks, sparkline, ui } from "../util.js";
+import { STATUS, STEPS, attention, bar, dur, esc, hoursLeft, icon, isLLM, numTag, pct, sloChecks, sparkline, ui, waitInfo } from "../util.js";
 import { bestCell } from "../sheets/launch.js";
 import { failButton, failLinks, failLog } from "./failure.js";
 
-const LIVE = ["running", "starting", "stopping"];
+const LIVE = ["running", "starting", "stopping", "waiting"];
 const sum = (xs, f) => xs.reduce((s, x) => s + (Number(f(x)) || 0), 0);
 const pctAt = (v, max) => `${Math.min(Math.max((v / max) * 100, 0), 100).toFixed(1)}%`;
 
@@ -71,11 +71,13 @@ function bootBody(i) {
 const stopBody = (i) =>
   `<div class="ov-boot"><span class="ov-wait"><span class="spin">${icon("loader")}</span>正在释放</span><span class="muted num">已用 ${dur(i.uptime_s)}</span></div>`;
 
+const waitBody = (i) => `<div class="ov-boot"><span class="ellipsis">${esc(i.wait ? waitInfo(i.wait) : "")}</span></div>`;
+
 function card(i) {
   const [dot, label] = STATUS[i.status];
   const run = i.status === "running", llm = isLLM(i);
   const tag = !run ? `<span class="chip ${dot === "busy" ? "brand" : dot}">${esc(label)}</span>` : llm ? "" : `<span class="chip">${esc(i.kind)}</span>`;
-  const body = i.status === "starting" ? bootBody(i) : i.status === "stopping" ? stopBody(i) : llm ? llmBody(i) : mediaBody(i);
+  const body = i.status === "starting" ? bootBody(i) : i.status === "stopping" ? stopBody(i) : i.status === "waiting" ? waitBody(i) : llm ? llmBody(i) : mediaBody(i);
   const foot = run
     ? `<button class="btn sm" data-copy-snippet="${esc(i.id)}">${icon("copy")}复制调用</button>${llm || !i.model ? "" : `<button class="btn sm" data-open-model="${esc(i.model)}">${icon("sparkles")}模板</button>`}` : "";
   return `<article class="panel ov-card" data-key="card-${esc(i.id)}" data-view-inst="${esc(i.id)}">

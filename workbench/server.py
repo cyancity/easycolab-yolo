@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import accounts, catalog, deployments, failures, gateway, model_docs, monitor
+from . import accounts, catalog, deployments, failures, gateway, model_docs, monitor, waitlist
 from .keys import gateway_key, mask_key, redact
 from .paths import STATIC_DIR
 
@@ -112,6 +112,8 @@ def _instance_view(d: dict, orphans: Optional[dict] = None) -> dict:
     }
     if d["status"] in ("failed", "release_failed"):
         view["fail"] = _fail_view(d, orphans or {})
+    if d["status"] == "waiting" and d.get("wait"):
+        view["wait"] = {k: d["wait"].get(k) for k in ("tries", "max", "next_at")}
     return view
 
 
@@ -189,6 +191,17 @@ def stop(dep_id: str):
         raise HTTPException(404, "实例不存在")
     deployments.stop(dep_id)
     monitor.refresh_accounts_soon()
+    return {"ok": True}
+
+
+@app.post("/api/instances/{dep_id}/wait")
+def wait(dep_id: str):
+    if not deployments.get(dep_id):
+        raise HTTPException(404, "实例不存在")
+    try:
+        waitlist.enqueue(dep_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"ok": True}
 
 

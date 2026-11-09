@@ -74,8 +74,11 @@ export const modelChip = (m) => m.kind !== "语言" ? `<span class="chip">${esc(
 export const STATUS = {
   running: ["ok", "运行中"], starting: ["busy", "部署中"], stopping: ["busy", "释放中"],
   failed: ["err", "失败"], stopped: ["", "已释放"], orphan: ["warn", "未纳管"],
-  release_failed: ["err", "释放失败"],
+  release_failed: ["err", "释放失败"], waiting: ["warn", "等卡中"],
 };
+const hhmm = (ts) => new Date(ts * 1000).toTimeString().slice(0, 5);
+// 排队等卡的进度：第 n/8 次 · HH:MM 再试（还没试过时不写次数）
+export const waitInfo = (w) => [w.tries ? `第 ${w.tries}/${w.max} 次` : "", `${hhmm(w.next_at)} 再试`].filter(Boolean).join(" · ");
 export const STEPS = ["分配实例", "部署服务", "下载权重", "载入显存", "自测"];
 
 // 语言模型三项，其他模型只有显存；数据缺失时 ok 为 null
@@ -91,11 +94,12 @@ export function sloChecks(i) {
   return out;
 }
 
-// 失败实例能做的事，第一个是主按钮。容量、资格类失败里「重新部署」就是换卡或换账号，所以只留一个按钮
+// 失败实例能做的事，第一个是主按钮；分不到卡时「排队等卡」排在最前。容量、资格类失败里「重新部署」就是换卡或换账号，所以只留一个按钮
 export function failActions(i) {
   const f = i.fail, acts = f?.actions || ["redeploy"], out = [];
   if (acts.includes("relogin")) out.push({ label: "重新登录", attr: "data-relogin", value: i.email });
   if (acts.includes("release_orphans")) out.push({ label: `释放 ${f.orphans} 台未纳管实例`, attr: "data-release-orphans", value: i.email });
+  if (acts.includes("wait")) out.push({ label: "排队等卡", attr: "data-wait", value: i.id });
   if (i.model) out.push({ label: acts.includes("switch") ? "换卡或换账号" : "重新部署", attr: "data-redeploy", value: i.id });
   if (acts.includes("logs")) out.push({ label: ui.logOpen.has(i.id) ? "收起日志" : "查看失败前日志", attr: "data-fail-log", value: i.id });
   return out.map((a, n) => ({ ...a, tone: n === 0 && a.attr !== "data-fail-log" ? "primary" : "" }));

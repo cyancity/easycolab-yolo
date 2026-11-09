@@ -138,8 +138,15 @@ function trouble() {
     dead("i-h3x10", ultra, "h3", "G4", 2, "unknown", "唤醒结束但没有拿到服务地址",
       [...asked("G4"), ev(13, "ok", "已分配 G4，显存 95.6 GB"), ev(11, "info", "部署推理服务"), ev(10, "err", "唤醒结束但没有拿到服务地址")], { log: UNKNOWN_LOG }),
   ];
+  const waiting = mkInstance(pro, "q27", "G4", {
+    id: "i-q27w8", status: "waiting", step: 1, step_text: "", _up: 0, _t0: Date.now() - 29 * 60000,
+    wait: { tries: 2, max: 8, next_at: Math.floor(Date.now() / 1000) + 12 * 60 },
+    events: [ev(29, "info", "向 Colab 申请 G4"), ev(29, "err", "Colab 暂时分不出 G4（HTTP 503）"), ev(28, "info", "排队等卡：每 15 分钟申请一次，最多 8 次"),
+      ev(18, "info", "排队第 1/8 次：申请 G4"), ev(18, "warn", `仍分不出 G4，第 1/8 次；${hhmm(3)} 再试`),
+      ev(3, "info", "排队第 2/8 次：申请 G4"), ev(3, "warn", `仍分不出 G4，第 2/8 次；${hhmm(-12)} 再试`)],
+  });
   return {
-    accounts: [ultra, pro, jio1, jio2, jio3], instances: [flashNext(ultra), rel, orphan, ...failed],
+    accounts: [ultra, pro, jio1, jio2, jio3], instances: [flashNext(ultra), waiting, rel, orphan, ...failed],
     cooldown: { left: 540, why: "H100 连续 503" },
   };
 }

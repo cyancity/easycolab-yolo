@@ -35,7 +35,7 @@ monitor.ACCOUNT_CACHE.update({
 # (期望类型, 错误文本, 步骤, 账号, 显卡, 模型, 期望链接片段, 期望动作)
 CASES = [
     ("capacity", "Colab 暂时分不出 H100（HTTP 503，已自动重试 3 次）。通常是该型号容量紧张。", 1, EMAIL, "A100", "q27",
-     ["colab.research.google.com/?authuser="], ["switch", "redeploy"]),
+     ["colab.research.google.com/?authuser="], ["switch", "redeploy", "wait"]),
     ("too_many", "Colab 拒绝分配（HTTP 412）：账号下活动实例过多或触发了临时用量限制，先释放其他实例再试。", 1, EMAIL, "L4", "q27",
      ["colab.research.google.com/?authuser="], ["redeploy", "release_orphans"]),
     ("not_eligible", "当前账号没有 H100 的使用资格，可用：T4, L4, A100。请换卡或切换到有该资格的账号。", 1, EMAIL, "L4", "q27",

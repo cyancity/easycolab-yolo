@@ -64,6 +64,7 @@ export function mkFail(kind, email, { model, log = [], orphans = 0 } = {}) {
   const links = { not_eligible: [plans], no_balance: [plans], auth: [], download: [...hf, open], load: [...hf, open] }[kind] || [open];
   const actions = ["redeploy"];
   if (["capacity", "not_eligible", "no_balance"].includes(kind)) actions.unshift("switch");
+  if (kind === "capacity") actions.push("wait");
   if (kind === "too_many" && orphans) actions.push("release_orphans");
   if (kind === "auth") actions.unshift("relogin");
   if (log.length) actions.push("logs");

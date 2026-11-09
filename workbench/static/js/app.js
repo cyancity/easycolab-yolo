@@ -184,8 +184,9 @@ const handlers = {
     }
     ui.confirm = null;
     clearTimeout(confirmT);
-    act(() => api.stopInstance(id), "正在释放");
+    act(() => api.stopInstance(id), inst(id)?.status === "waiting" ? "已取消排队" : "正在释放");
   },
+  wait: (t) => act(() => api.waitInstance(t.dataset.wait), "已排队，每 15 分钟申请一次，最多 8 次"),
   orphan: (t) => { const [e, ep] = t.dataset.orphan.split("|"); act(() => api.stopOrphan(e, ep), "已释放"); },
   bench: (t) => act(() => api.rebench(t.dataset.bench), "自测完成"),
   redeploy: (t) => redeploy(inst(t.dataset.redeploy)),

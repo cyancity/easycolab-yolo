@@ -1,5 +1,5 @@
 // 实例页：左栏分组列表，右栏详情
-import { STATUS, STEPS, bar, dur, esc, icon, isLLM, num, pct, ui } from "../util.js";
+import { STATUS, STEPS, bar, dur, esc, icon, isLLM, num, pct, ui, waitInfo } from "../util.js";
 import { detail } from "./detail.js";
 import { emptyState } from "./overview.js";
 
@@ -7,6 +7,7 @@ const GROUPS = [
   ["attention", "需要处理", ["release_failed", "orphan"]],
   ["running", "运行中", ["running", "stopping"]],
   ["starting", "部署中", ["starting"]],
+  ["waiting", "等卡中", ["waiting"]],
   ["ended", "已结束", ["failed", "stopped"]],
 ];
 const inGroup = (list, st) => list.filter((i) => st.includes(i.status));
@@ -23,7 +24,8 @@ function row(i) {
   else if (i.status === "starting") {
     const at = Math.min(Math.max(i.step || 1, 1), STEPS.length);
     sub = `<span class="ellipsis">${gpu} · ${esc(i.step_text || STEPS[at - 1])}</span>${bar(((at - 0.5) / STEPS.length) * 100)}`;
-  } else if (i.status === "failed") sub += `<span class="ellipsis">${esc(why)}</span>`;
+  } else if (i.status === "waiting" && i.wait) sub += `<span class="ellipsis">${esc(waitInfo(i.wait))}</span>`;
+  else if (i.status === "failed") sub += `<span class="ellipsis">${esc(why)}</span>`;
   else if (i.status === "release_failed") sub += `<span class="ellipsis">${esc(why || "可能还在扣 CU")}</span>`;
   else if (i.status === "orphan") sub += `<span class="ellipsis">不是工作台启动的</span>`;
   return `<div class="row" role="option" tabindex="0" data-key="row-${esc(i.id)}" data-inst="${esc(i.id)}" aria-selected="${ui.sel === i.id}">

@@ -3,7 +3,6 @@ import json
 import os
 import re
 import secrets
-import signal
 import subprocess
 import sys
 import threading
@@ -13,13 +12,15 @@ from typing import Dict, List, Optional
 
 import requests
 
-from . import accounts, catalog, failures, selftest
+from . import accounts, catalog, failures, selftest, waitlist
+from .cloud import endpoint_of, gone as _gone, kill_proc as _kill_proc, log as _log  # noqa: F401 endpoint_of 对外保留
 from .keys import gateway_key, redact, write_private
 from .paths import APP_PY, BRIDGE, DEPLOYMENTS_FILE
 
 STEPS = ["分配实例", "部署服务", "下载权重", "载入显存", "自测"]
 # release_failed：实例可能还活着，监控线程会按 RELEASE_EVERY 间隔重试释放，所以也算活动状态
-ACTIVE = ("starting", "running", "stopping", "release_failed")
+# waiting：排队等卡，没有实例，但部署还要继续
+ACTIVE = ("starting", "running", "stopping", "release_failed", "waiting")
 _EMOJI = re.compile("[\U0001F000-\U0001FFFF☀-➿️‍]")
 # 分配被拒（503/412/超时/分配失败）都要冷却，避免连续重试被判定为滥用
 _REFUSED = re.compile(r"\b(503|412)\b|timed?[ -]?out|超时|allocation|分配", re.I)
@@ -41,10 +42,6 @@ _KEEP_RAW = {"url", "comfy_url"}  # 服务地址本身含访问密钥，落盘�
 
 def _now() -> str:
     return time.strftime("%H:%M")
-
-
-def _log(msg: str):
-    print(f"[deployments] {msg}", file=sys.stderr, flush=True)
 
 
 # ---------- 持久化 ----------
@@ -220,6 +217,20 @@ def start(email: str, model_id: str, gpu: str, params: Optional[dict] = None) ->
     return d
 
 
+def retry_waiting(d: dict) -> bool:
+    """waitlist.tick 调用：排队的部署到点再申请一次，申请到了就接着往下部署"""
+    with _lock:
+        w = d.get("wait")
+        if d["status"] != "waiting" or not w:
+            return False
+        w["tries"] += 1
+        d.update(status="starting", step=1, step_text=STEPS[0], error="", url="")
+        d.pop("fail_log", None)
+    event(d, "info", f"排队第 {w['tries']}/{w['max']} 次：申请 {d['gpu']}")
+    threading.Thread(target=_run, args=(d,), daemon=True).start()
+    return True
+
+
 def _run(d: dict):
     m = catalog.BY_ID[d["model"]]
     try:
@@ -243,11 +254,16 @@ def _run(d: dict):
         with _lock:
             was_starting = d["status"] == "starting"
             if was_starting:
-                d["status"], d["error"] = "failed", redact(str(e))[:300]
+                d["error"] = redact(str(e))[:300]
+                queued = waitlist.rearm(d)  # 排队中又被拒且次数没用完：回到 waiting，不算失败
+                d["status"] = "waiting" if queued else "failed"
         if was_starting:
-            event(d, "err", d["error"])
+            if d.get("wait"):
+                waitlist.report(d, queued)
+            else:
+                event(d, "err", d["error"])
             _keep_evidence(d)
-            _release(d, reason="部署失败，已自动释放实例，避免空耗 CU")
+            _release(d, reason="本次申请失败，已释放实例" if queued else "部署失败，已自动释放实例，避免空耗 CU")
     finally:
         _kill_proc(d.get("_proc"))
         if d["status"] in ("stopping", "stopped"):
@@ -264,23 +280,6 @@ def _keep_evidence(d: dict):
         return _log("取失败前日志出错：" + traceback.format_exc())
     with _lock:
         d["fail_log"] = lines
-
-
-def _kill_proc(p):
-    """结束桥接子进程及其子进程树，防止取消后仍在申请 GPU"""
-    if p is None or p.poll() is not None:
-        return
-    try:
-        if sys.platform == "win32":
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, timeout=15)
-        else:
-            os.killpg(p.pid, signal.SIGKILL)
-    except Exception:  # noqa: BLE001
-        _log("结束子进程树失败：\n" + traceback.format_exc())
-    try:
-        p.kill()
-    except Exception:  # noqa: BLE001 进程已退出
-        pass
 
 
 def _wake(d: dict):
@@ -397,6 +396,9 @@ def bench(d: dict):
 # ---------- 停止与释放 ----------
 
 def stop(dep_id: str):
+    d = _deps.get(dep_id)
+    if d and d["status"] == "waiting":  # 排队中没有实例，只取消排队
+        return waitlist.cancel(dep_id)
     with _lock:
         d = _deps.get(dep_id)
         if not d or d["status"] in ("stopped", "stopping"):
@@ -416,14 +418,6 @@ def _stop_run(d: dict):
         except Exception:  # noqa: BLE001
             pass
     _release(d, reason="已释放实例")
-
-
-def _gone(d: dict, endpoint: str) -> bool:
-    """unassign 报错时再确认一次：云端已没有该实例就等同释放成功"""
-    try:
-        return all(a.get("endpoint") != endpoint for a in accounts.assignments(d["email"]))
-    except Exception:  # noqa: BLE001
-        return False
 
 
 def _release(d: dict, reason: str):
@@ -448,7 +442,7 @@ def _release(d: dict, reason: str):
                 d["_tries"] = n = d.get("_tries", 0) + 1
                 d["_next"] = time.time() + RELEASE_EVERY if n < RELEASE_TRIES else float("inf")
                 if d["status"] != "release_failed":
-                    d["after"] = "failed" if d["status"] == "failed" else "stopped"
+                    d["after"] = d["status"] if d["status"] in ("failed", "waiting") else "stopped"
                 d["status"] = "release_failed"
             tail = f"{RELEASE_EVERY} 秒后重试" if n < RELEASE_TRIES else "已停止自动重试，请在账号页手动释放"
             event(d, "err", f"释放失败（第 {n}/{RELEASE_TRIES} 次），{tail}：{e}")
@@ -459,7 +453,8 @@ def _release(d: dict, reason: str):
                 elif d["status"] == "stopping":
                     d["status"] = "stopped"
                 d["_tries"] = 0
-                d.setdefault("stopped_at", time.time())
+                if d["status"] != "waiting":  # 排队中的部署还没结束
+                    d.setdefault("stopped_at", time.time())
     _save()
 
 
@@ -470,11 +465,3 @@ def retry_release(d: dict):
             return
         d["_next"] = time.time() + RELEASE_EVERY  # 先占位，避免上一次还没返回就被再次提交
     _release(d, reason="已释放实例（重试成功）")
-
-
-def endpoint_of(d: dict) -> str:
-    try:
-        s = accounts.sessions_store(d["email"]).get(d["session"])
-    except Exception:  # noqa: BLE001
-        return ""
-    return s.endpoint if s else ""

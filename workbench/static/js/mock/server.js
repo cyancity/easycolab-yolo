@@ -166,11 +166,21 @@ function deploy({ model, email, gpu, params }) {
 
 function stop(id) {
   const i = find(id);
+  if (i.status === "waiting") { i.status = "stopped"; push(i, "info", "已取消排队"); return { ok: true }; }
   if (!["running", "starting", "release_failed"].includes(i.status)) throw new HttpError(400, "实例当前状态不能停止");
   i.status = "stopping";
   i.step_text = "正在释放";
   i._stopT = Date.now();
   push(i, "info", "收到释放请求");
+  return { ok: true };
+}
+
+function wait(id) {
+  const i = find(id);
+  if (i.status !== "failed" || i.fail?.kind !== "capacity") throw new HttpError(400, "只有分不到卡的部署可以排队");
+  Object.assign(i, { status: "waiting", wait: { tries: 0, max: 8, next_at: Math.floor(Date.now() / 1000) + 10 * 60 } });
+  delete i.fail;
+  push(i, "info", "排队等卡：每 15 分钟申请一次，最多 8 次");
   return { ok: true };
 }
 
@@ -189,6 +199,7 @@ const ROUTES = [
   ["GET", /^\/api\/state$/, () => stateBody()],
   ["POST", /^\/api\/deploy$/, (m, b) => deploy(b)],
   ["POST", /^\/api\/instances\/([^/]+)\/stop$/, (m) => stop(m[1])],
+  ["POST", /^\/api\/instances\/([^/]+)\/wait$/, (m) => wait(m[1])],
   ["POST", /^\/api\/instances\/([^/]+)\/bench$/, (m) => { find(m[1])._benchAt = Date.now() + 1500; return { ok: true }; }],
   ["POST", /^\/api\/orphans\/stop$/, (m, b) => {
     const i = S.instances.find((x) => x.status === "orphan" && x.email === b.email && x.endpoint === b.endpoint);

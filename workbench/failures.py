@@ -1,7 +1,7 @@
 """部署失败归类：把失败部署的错误文本、失败步骤归成一类，给界面一条能做的下一步。
 
 fail = {kind, title, hint, links:[{label,url}], actions:[...], log:[...]}
-actions 取值：redeploy 重新部署、switch 换卡或换账号、release_orphans 释放未纳管实例、relogin 重新登录、logs 查看失败前日志。
+actions 取值：redeploy 重新部署、switch 换卡或换账号、wait 排队等卡（只给分不到卡的失败）、release_orphans 释放未纳管实例、relogin 重新登录、logs 查看失败前日志。
 链接只放行 https，URL 里除账号邮箱外不带任何东西；邮箱只用于让 Colab 打开对应的 Google 账号。
 """
 import json
@@ -105,6 +105,8 @@ def classify(d: dict, hf: str = "", orphans: int = 0, cu: Optional[float] = None
     actions = ["redeploy"] if kind != "release_failed" else []
     if kind in ("capacity", "not_eligible", "no_balance"):
         actions.insert(0, "switch")
+    if kind == "capacity":
+        actions.append("wait")
     if kind == "too_many" and orphans > 0:
         actions.append("release_orphans")
     if kind == "auth":

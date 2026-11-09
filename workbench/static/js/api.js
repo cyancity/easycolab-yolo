@@ -24,6 +24,7 @@ export async function refresh() {
 
 export const deploy = (model, email, gpu, params) => call("POST", "/api/deploy", { model, email, gpu, params });
 export const stopInstance = (id) => call("POST", `/api/instances/${id}/stop`);
+export const waitInstance = (id) => call("POST", `/api/instances/${id}/wait`);
 export const rebench = (id) => call("POST", `/api/instances/${id}/bench`);
 export const stopOrphan = (email, endpoint) => call("POST", "/api/orphans/stop", { email, endpoint });
 // email 只在重新登录时传。后端目前不读请求体，按新增账号处理，同邮箱会覆盖旧凭据
