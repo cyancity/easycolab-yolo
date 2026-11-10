@@ -1,7 +1,5 @@
-// 模型页：左侧模型列表，右侧各卡适配、说明、优缺点、用法和模板
+// 模型页：左侧模型列表，右侧各卡适配、说明、优缺点、用法；ComfyUI 另列可选模型包
 import { bar, esc, icon, modelChip, safeUrl, ui } from "../util.js";
-import { hasCode } from "../callcode.js";
-
 
 function source(s) {
   const text = String(s || "").trim();
@@ -19,8 +17,6 @@ function section(id, title, ic, list, cls = "", ordered = false) {
   const tag = ordered ? "ol" : "ul";
   return `<section class="panel" data-key="${id}"><div class="panel-h ${cls}">${icon(ic)}${title}</div><${tag} class="pg-rows">${items(list, id)}</${tag}></section>`;
 }
-
-const chipOf = (k, v) => `<span class="chip">${esc(k)} ${esc(typeof v === "object" ? JSON.stringify(v) : v)}</span>`;
 
 // 各卡适配：显卡、预估速度、显存占用、推荐；这个模型放不下的卡灰显
 function fitTable(m) {
@@ -40,38 +36,22 @@ function fitTable(m) {
     <tbody>${rows}</tbody></table></div></section>`;
 }
 
-function template(m, t, idx) {
-  const key = `${m.id}:${idx}`, open = !!ui.tplOpen[key];
-  const extras = [["反向", t.negative], ["音效", t.sound], ["音乐", t.music]].filter(([, v]) => v);
-  const expandable = extras.length > 0 || t.prompt.length > 180;
-  const note = [t.source_note, safeUrl(t.source) ? "" : t.source].filter(Boolean).join(" · ");
-  const params = Object.entries(t.params || {}).map(([k, v]) => chipOf(k, v)).join("");
-  return `<article class="panel pg-tpl" data-key="tpl-${idx}">
-    <div class="pg-tpl-h"><b>${esc(t.title)}</b>${t.scene ? `<span class="muted">${esc(t.scene)}</span>` : ""}</div>
-    <div class="pg-prompt ${open ? "" : "clamp"}">${esc(t.prompt)}</div>
-    ${open && extras.length ? `<div class="pg-tpl-extra" data-key="extra">${extras.map(([k, v]) => `<span class="muted">${k}</span><div class="pg-prompt">${esc(v)}</div>`).join("")}</div>` : ""}
-    <div class="pg-tpl-f">
-      <div class="pg-tpl-meta">${params}${note ? `<span class="pg-src-text">${esc(note)}</span>` : ""}${safeUrl(t.source) ? source(t.source) : ""}</div>
-      <div class="pg-tpl-act">
-        ${expandable ? `<button class="btn sm ghost" data-tpl-open="${esc(key)}" aria-expanded="${open}">${open ? "收起" : "展开"}</button>` : ""}
-        <button class="btn sm" data-copy-prompt="${esc(key)}">${icon("copy")}复制提示词</button>
-        ${hasCode(m) ? `<button class="btn sm" data-copy-code="${esc(key)}">${icon("copy")}复制调用代码</button>` : ""}
-      </div></div></article>`;
-}
+// 图片与视频：部署时可勾选的模型包
+const packList = (m) => !m.packs?.length ? "" : `<section class="panel" data-key="packs"><div class="panel-h">${icon("boxes")}模型包</div>
+  <ul class="pg-rows">${m.packs.map((p) => `<li data-key="pack-${esc(p.id)}"><span class="grow">${esc(p.title)}</span><span class="chip">${esc(p.kind)}</span><span class="muted">${esc(p.size)}</span></li>`).join("")}</ul></section>`;
 
 function detail(m, doc) {
   const href = safeUrl(doc?.hf);
   const hfLabel = href && new URL(href).hostname === "github.com" ? "GitHub" : "Hugging Face";
   const pair = section("strengths", "优点", "check", doc?.strengths || [], "pg-pro") + section("weaknesses", "缺点", "triangle-alert", doc?.weaknesses || [], "pg-con");
-  const tpls = doc?.templates || [];
-  const empty = !(doc?.summary || ["facts", "strengths", "weaknesses", "usage", "templates"].some((k) => doc?.[k]?.length));
+  const empty = !(doc?.summary || m.packs?.length || ["facts", "strengths", "weaknesses", "usage"].some((k) => doc?.[k]?.length));
   const body = [
     doc?.summary ? `<p class="pg-lead" data-key="lead">${esc(doc.summary)}</p>` : "",
     fitTable(m),
     section("facts", "事实", "info", doc?.facts || []),
     pair ? `<div class="pg-pair" data-key="pair">${pair}</div>` : "",
     section("usage", "用法", "list", doc?.usage || [], "", true),
-    tpls.length ? `<div class="pg-tpls" data-key="tpls">${tpls.map((t, i) => template(m, t, i)).join("")}</div>` : "",
+    packList(m),
   ].join("");
   return `<div class="d-head" data-key="head"><div><h2>${esc(m.name)}</h2>
       <div class="d-sub">${modelChip(m)}<span>${esc(m.spec)}</span><span>${esc(m.size)}</span></div></div>
@@ -79,14 +59,6 @@ function detail(m, doc) {
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${icon("external-link")}${hfLabel}</a>` : ""}
       <button class="btn primary" data-model-deploy="${esc(m.id)}" ${m.ready ? "" : "disabled"}>${icon("rocket")}部署</button></div></div>
     ${body}${empty ? `<p class="muted" data-key="pending">说明整理中</p>` : ""}`;
-}
-
-// 点击时按「模型id:序号」找回模板
-export function tplRef(key) {
-  const [id, idx] = key.split(":");
-  const model = ui.data.models.find((x) => x.id === id);
-  const tpl = ui.docs?.[id]?.templates?.[Number(idx)];
-  return model && tpl ? { model, tpl } : null;
 }
 
 const row = (m) => `<div class="row m" role="option" tabindex="0" data-key="m-${esc(m.id)}" data-model="${esc(m.id)}" aria-selected="${ui.msel === m.id}">

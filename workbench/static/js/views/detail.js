@@ -11,7 +11,6 @@ const hasComfy = (i) => typeof i.comfy_url === "string" && i.comfy_url.startsWit
 function actions(i) {
   const id = esc(i.id), out = [];
   if (i.status === "running") {
-    if (!isLLM(i) && ui.docs?.[i.model]?.templates?.length) out.push(`<button class="btn" data-key="a-tpl" data-open-model="${esc(i.model)}">${icon("sparkles")}模板</button>`);
     if (hasComfy(i)) out.push(`<button class="btn primary" data-key="a-comfy" data-open-canvas="${id}">${icon("workflow")}打开画布</button>`);
     if (isLLM(i)) out.push(`<button class="btn" data-key="a-bench" data-bench="${id}">${icon("timer")}重新自测</button>`);
     const arm = ui.confirm === i.id;
@@ -159,7 +158,7 @@ export function detail(i) {
   const id = esc(i.id), top = head(i);
   switch (i.status) {
     case "running":
-      return top + sloBar(i) + stats(i) + headroom(i) + genPanel(i) + `<div class="two" data-key="d-two">${apiPanel(i)}${events(i)}</div>`;
+      return top + sloBar(i) + stats(i) + headroom(i) + genPanel(i) + (isLLM(i) ? `<div class="two" data-key="d-two">${apiPanel(i)}${events(i)}</div>` : events(i));
     case "starting": return top + progress(i) + events(i);
     case "waiting": return top + banner("warn", "clock", `等卡中${i.wait ? " · " + esc(waitInfo(i.wait)) : ""}`) + events(i);
     case "failed":

@@ -78,8 +78,7 @@ function card(i) {
   const run = i.status === "running", llm = isLLM(i);
   const tag = !run ? `<span class="chip ${dot === "busy" ? "brand" : dot}">${esc(label)}</span>` : llm ? "" : `<span class="chip">${esc(i.kind)}</span>`;
   const body = i.status === "starting" ? bootBody(i) : i.status === "stopping" ? stopBody(i) : i.status === "waiting" ? waitBody(i) : llm ? llmBody(i) : mediaBody(i);
-  const foot = run
-    ? `<button class="btn sm" data-copy-snippet="${esc(i.id)}">${icon("copy")}复制调用</button>${llm || !i.model ? "" : `<button class="btn sm" data-open-model="${esc(i.model)}">${icon("sparkles")}模板</button>`}` : "";
+  const foot = run && llm ? `<button class="btn sm" data-copy-snippet="${esc(i.id)}">${icon("copy")}复制调用</button>` : "";
   return `<article class="panel ov-card" data-key="card-${esc(i.id)}" data-view-inst="${esc(i.id)}">
     <div class="ov-card-h"><span class="dot ${dot}"></span>
       <div class="grow"><div class="ov-card-t ellipsis">${esc(i.name || i.gpu)}</div>

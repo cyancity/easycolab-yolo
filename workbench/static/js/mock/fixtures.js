@@ -73,14 +73,14 @@ function daily() {
     events: [ev(67, "info", "向 Colab 申请 A100"), ev(66, "ok", "已分配 A100，显存 80 GB"), ev(61, "info", "下载权重 18.7 GB"),
       ev(55, "ok", "权重就绪"), ev(53, "info", "载入显存，上下文 128K"), ev(51, "warn", "自测完成：单流 61 tok/s，低于 100 tok/s 达标线")],
   });
-  const qimg = mkRunning(pro, "qimg", "L4", {
-    id: "i-qimg3", up: 2400, vram: 19.8, ram: 9.6, util: 35, reqs: 12,
-    events: [ev(41, "info", "向 Colab 申请 L4"), ev(40, "ok", "已分配 L4，显存 22.5 GB"), ev(36, "info", "下载权重 30.9 GB"),
-      ev(28, "ok", "权重就绪，载入显存"), ev(26, "ok", "出图自测通过：约 4 s / 张"), ev(9, "info", "累计出图 12 张")],
+  const qimg = mkRunning(pro, "comfy", "L4", {
+    id: "i-comfy3", up: 2400, vram: 19.8, ram: 9.6, util: 35, reqs: 0, models: [],
+    events: [ev(41, "info", "向 Colab 申请 L4"), ev(40, "ok", "已分配 L4，显存 22.5 GB"), ev(36, "info", "下载模型包：Z-Image-Turbo"),
+      ev(28, "ok", "权重就绪，启动 ComfyUI"), ev(26, "ok", "画布就绪")],
   });
-  const h3 = mkInstance(pro, "h3", "G4", {
-    id: "i-h3x4", step: 3, step_text: "下载权重 42%", _t0: Date.now() - 70000, _stepT0: Date.now() - 2100,
-    events: [ev(1, "info", "向 Colab 申请 G4"), ev(1, "ok", "已分配 G4，显存 95.6 GB"), ev(1, "info", "部署推理服务"), ev(0, "info", "开始下载权重 134 GB")],
+  const h3 = mkInstance(pro, "comfy", "G4", {
+    id: "i-comfy4", step: 3, step_text: "下载权重 42%", _t0: Date.now() - 70000, _stepT0: Date.now() - 2100,
+    events: [ev(1, "info", "向 Colab 申请 G4"), ev(1, "ok", "已分配 G4，显存 95.6 GB"), ev(1, "info", "部署推理服务"), ev(0, "info", "开始下载模型包：MiniMax-H3")],
   });
   const old = mkInstance(pro, "zimg", "L4", {
     id: "i-zimg5", status: "stopped", step: 5, step_text: "已释放", _up: 5400, used: 7.2, cuh: 4.8,

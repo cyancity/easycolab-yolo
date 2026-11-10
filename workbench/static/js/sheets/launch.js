@@ -4,7 +4,7 @@ import { esc, icon, modelChip, num, ui } from "../util.js";
 const modelOf = (id) => ui.data.models.find((m) => m.id === id);
 const acctOf = (email) => ui.data.accounts.find((a) => a.email === email);
 const CTX = [[131072, "128K"], [262144, "256K"], [393216, "384K"], [524288, "512K"]];
-const KINDS = ["语言", "图像", "视频", "工作流"];
+const KINDS = ["语言", "图片与视频"];
 const STEP_NAMES = ["模型", "机器", "确认"];
 
 // icon() 不带额外 class，这里补一个（建议并入内核：icon(name, cls)）
@@ -22,6 +22,7 @@ const AVOID = new Set(["capacity", "not_eligible", "no_balance"]);
 // 失败实例重新部署：同一个模型，直接到第 2 步；容量、资格类失败避开原来的账号和显卡
 export function redeploy(i) {
   newLaunch(i.model);
+  if (i.packs?.length) ui.launch.packs = [...i.packs];
   ui.launch.avoid = AVOID.has(i.fail?.kind) ? `${i.email}|${i.gpu_req}` : null;
   recommend();
   ui.launch.step = 2;
@@ -128,6 +129,15 @@ function step2() {
 }
 
 /* ---------- 第 3 步：确认 ---------- */
+// 模型包：首次进入按 default 预选，之后以 ui.launch.packs 为准
+export const packsOf = (m) => (m?.packs ? (ui.launch.packs ??= m.packs.filter((p) => p.default).map((p) => p.id)) : null);
+
+function packPicker(m, picked) {
+  return `<div class="sh-packs" role="group" aria-label="模型包">${m.packs.map((p) =>
+    `<label class="sh-pack" data-key="pack-${esc(p.id)}"><input type="checkbox" data-pack-toggle="${esc(p.id)}" ${picked.includes(p.id) ? "checked" : ""}>
+      <span class="grow ellipsis">${esc(p.title)}</span><span class="chip">${esc(p.kind)}</span><span class="muted">${esc(p.size)}</span></label>`).join("")}</div>`;
+}
+
 function step3() {
   const L = ui.launch, m = modelOf(L.model), a = acctOf(L.email), f = m.fit[L.gpu];
   const llm = m.kind === "语言", s = ui.data.slo;
@@ -135,10 +145,13 @@ function step3() {
   const seg = CTX.filter(([v]) => v <= (m.ctx_max || m.ctx || 256) * 1024)
     .map(([v, l]) => `<button data-ctx="${v}" aria-pressed="${ctx === v}">${l}</button>`).join("");
   const lowCtx = llm && ctx != null && ctx / 1024 < s.ctxMin;
+  const picked = packsOf(m);
+  const what = picked ? picked.map((id) => m.packs.find((p) => p.id === id)?.title).filter(Boolean).join("、") : m.size;
   return `<div class="sh-sum panel"><div class="kv">
-      <span class="k">模型</span><span>${esc(m.name)} · ${esc(m.size)}</span><span></span>
+      <span class="k">模型</span><span>${esc(m.name)}${what ? ` · ${esc(what)}` : ""}</span><span></span>
       <span class="k">机器</span><span>${esc(L.gpu)} · ${esc(a.label)}（${esc(a.tier)}）</span><span></span>
       <span class="k">预估</span><span>${esc(f.tps)} · 显存 ${num(f.fill, 0)}%</span><span></span></div></div>
+    ${picked ? packPicker(m, picked) : ""}
     ${llm ? `<div class="sh-ctx" data-key="ctx"><span class="muted">上下文</span><span class="seg" role="group" aria-label="上下文">${seg}</span>
       ${lowCtx ? `<span class="chip warn" data-key="ctx-low">低于 ${num(s.ctxMin, 0)}K</span>` : ""}</div>` : ""}
     ${llm && m.slo !== "ok" ? `<div class="banner warn" data-key="slo-warn">${icon("triangle-alert")}<span class="grow">这个模型预估单流低于 ${num(s.tpsMin, 0)} tok/s。</span></div>` : ""}`;
@@ -150,7 +163,7 @@ export function renderLaunch() {
   if (!L) return "";
   const body = L.step === 1 ? step1() : L.step === 2 ? step2() : step3();
   const m = modelOf(L.model), a = acctOf(L.email);
-  const can = L.step === 1 ? !!m?.ready : L.step === 2 ? !!L.gpu : !L.busy;
+  const can = L.step === 1 ? !!m?.ready : L.step === 2 ? !!L.gpu : !L.busy && !(m?.packs && !packsOf(m).length);
   const summary = [m?.name, a && L.gpu && L.step > 1 ? `${L.gpu} · ${a.label}` : ""].filter(Boolean).map(esc).join(" · ");
   return `<div class="scrim" data-key="sheet-launch" data-close><div class="sheet sh-launch" role="dialog" aria-modal="true" aria-label="新建部署">
     <div class="sheet-h"><h2>新建部署</h2>${stepper(L.step)}

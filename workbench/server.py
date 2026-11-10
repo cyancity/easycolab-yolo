@@ -109,6 +109,7 @@ def _instance_view(d: dict, orphans: Optional[dict] = None) -> dict:
         "events": [[e[0], e[1], redact(e[2])] for e in d["events"][-30:]],
         "comfy_url": comfy if isinstance(comfy, str) and comfy.startswith("https://") else "",
         "has_url": bool(d.get("url")),
+        "packs": [p for p in (d.get("params") or {}).get("comfy_packs") or [] if p in catalog.COMFY_PACK_BY_ID],
         "models": [x["id"] for x in gateway.instance_models(d) if x.get("loaded")] if d["status"] == "running" else [],
     }
     if d["status"] in ("failed", "release_failed"):

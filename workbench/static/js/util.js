@@ -52,7 +52,7 @@ export const ui = {
   offline: false, loading: true,
   collapsed: new Set(["ended"]),
   dismissed: new Set(stored(DISMISS_KEY)),
-  confirm: null, logOpen: new Set(), msel: null, docs: null, gen: {}, tplOpen: {}, resetScroll: false,
+  confirm: null, logOpen: new Set(), msel: null, docs: null, gen: {}, resetScroll: false,
 };
 
 export function toast(msg, kind = "") {

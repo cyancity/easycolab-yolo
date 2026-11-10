@@ -114,7 +114,7 @@ function stateBody() {
     };
   });
   return {
-    accounts, instances, gateway: S.gateway, integrations: S.integrations, cooldown: S.cooldown, slo: CATALOG.slo, gpus: CATALOG.gpus, prefs: { ...prefs }, models: CATALOG.models,
+    accounts, instances, gateway: S.gateway, integrations: S.integrations, cooldown: S.cooldown, slo: CATALOG.slo, gpus: CATALOG.gpus, prefs: { ...prefs }, models: CATALOG.models.filter((m) => !m.hidden),
   };
 }
 
@@ -153,7 +153,9 @@ const find = (id) => {
 
 function deploy({ model, email, gpu, params }) {
   const m = modelOf(model), a = S.accounts.find((x) => x.email === email);
-  if (!m || !a) throw new HttpError(400, "模型或账号不存在");
+  if (!m || m.hidden || !a) throw new HttpError(400, "模型或账号不存在");
+  const packs = m.packs ? params?.comfy_packs : null;
+  if (m.packs && !(Array.isArray(packs) && packs.length && packs.every((p) => m.packs.some((x) => x.id === p)))) throw new HttpError(400, "至少选一个模型包");
   if (a.state === "error") throw new HttpError(400, "账号登录已失效，请先重新登录");
   if (!a.eligible.includes(gpu) || !m.fit?.[gpu]) throw new HttpError(400, `${a.label} 不能在 ${gpu} 上部署 ${m.name}`);
   if (a.cooldown[gpu]) throw new HttpError(400, `${gpu} 正在冷却，约 ${Math.ceil(a.cooldown[gpu] / 60)} 分钟后再试`);

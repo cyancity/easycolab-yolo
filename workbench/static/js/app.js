@@ -6,10 +6,9 @@ import { readMs } from "./motion.js";
 import { viewOverview } from "./views/overview.js";
 import { viewInstances } from "./views/instances.js";
 import { viewAccounts } from "./views/accounts.js";
-import { tplRef, viewModels } from "./views/models.js";
-import { callCode } from "./callcode.js";
+import { viewModels } from "./views/models.js";
 import { genHandlers } from "./views/generate.js";
-import { newLaunch, recommend, redeploy, renderLaunch } from "./sheets/launch.js";
+import { newLaunch, packsOf, recommend, redeploy, renderLaunch } from "./sheets/launch.js";
 import { renderLogin } from "./sheets/login.js";
 
 const TITLES = { overview: "概览", instances: "实例", accounts: "账号", models: "模型" };
@@ -146,17 +145,13 @@ const handlers = {
   quick: (t) => { newLaunch(t.dataset.quick); recommend(); direct(ui.launch.gpu ? 3 : 2); },
   modelDeploy: (t) => { newLaunch(t.dataset.modelDeploy); recommend(); direct(2); },
   model: (t) => { ui.msel = t.dataset.model; ui.resetScroll = true; },
-  openModel: (t) => { ui.view = "models"; ui.msel = t.dataset.openModel; ui.resetScroll = true; },
-  tplOpen: (t) => { const k = t.dataset.tplOpen; ui.tplOpen[k] = !ui.tplOpen[k]; },
-  copyPrompt: (t) => copy(tplRef(t.dataset.copyPrompt).tpl.prompt),
-  copyCode: (t) => act(async () => {
-    const { model, tpl } = tplRef(t.dataset.copyCode);
-    await copy(callCode(model, tpl, ui.data.gateway.base, await api.gatewayKey()));
-    toast("已复制，含完整密钥", "ok");
-  }),
-  pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.email = ui.launch.gpu = ui.launch.rec = ui.launch.avoid = null; },
+  pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.packs = undefined; ui.launch.email = ui.launch.gpu = ui.launch.rec = ui.launch.avoid = null; },
   cell: (t) => { [ui.launch.email, ui.launch.gpu] = t.dataset.cell.split("|"); },
   ctx: (t) => { ui.launch.ctx = Number(t.dataset.ctx); },
+  packToggle: (t) => {
+    const L = ui.launch, id = t.dataset.packToggle, cur = packsOf(ui.data.models.find((x) => x.id === L.model));
+    L.packs = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  },
   preferGpu: (t) => {
     const gpu = t.dataset.preferGpu, prev = ui.data.prefs;
     if (prev?.gpu === gpu) return;
@@ -170,7 +165,8 @@ const handlers = {
   closeLogin: (t, e) => { if (e.target === t || t.tagName === "BUTTON") ui.login = null; else return false; },
   start: () => {
     const L = ui.launch, m = ui.data.models.find((x) => x.id === L.model);
-    const params = L.ctx && m.kind === "语言" ? { load: { context_length: L.ctx } } : {};
+    const params = m.packs ? { comfy_packs: packsOf(m) }
+      : L.ctx && m.kind === "语言" ? { load: { context_length: L.ctx } } : {};
     L.busy = true;
     // 失败时恢复按钮并保留弹层，错误由 act 以 toast 提示
     act(async () => {

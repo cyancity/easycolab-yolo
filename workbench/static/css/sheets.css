@@ -88,6 +88,12 @@ button.sh-cell:active { transform: scale(var(--press-scale)); }
 /* 第 3 步：确认 */
 .sh-sum { padding: var(--space-4) var(--space-5); }
 .sh-ctx { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-body-sm); }
+.sh-packs { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); overflow: hidden; }
+.sh-pack { display: flex; align-items: center; gap: var(--space-3); min-height: var(--row-h); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); cursor: pointer; }
+.sh-pack:last-child { border-bottom: 0; }
+.sh-pack:hover { background: var(--accent); }
+.sh-pack input { flex: none; width: var(--icon); height: var(--icon); margin: 0; accent-color: var(--brand); cursor: pointer; }
+.sh-pack .muted { flex: none; }
 
 /* 添加账号 */
 .sh-login { display: flex; flex-direction: column; gap: var(--space-4); }

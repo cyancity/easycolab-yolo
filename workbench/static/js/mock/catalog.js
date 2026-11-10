@@ -188,6 +188,7 @@ export const CATALOG = {
     },
     {
       "id": "qimg",
+      "hidden": true,
       "app_id": "qwen_image_21",
       "name": "Qwen-Image-2.1",
       "kind": "图像",
@@ -219,6 +220,7 @@ export const CATALOG = {
     },
     {
       "id": "zimg",
+      "hidden": true,
       "app_id": "z_image_turbo",
       "name": "Z-Image-Turbo",
       "kind": "图像",
@@ -255,6 +257,7 @@ export const CATALOG = {
     },
     {
       "id": "h3",
+      "hidden": true,
       "app_id": "minimax_h3",
       "name": "MiniMax-H3",
       "kind": "视频",
@@ -277,11 +280,19 @@ export const CATALOG = {
     {
       "id": "comfy",
       "app_id": null,
-      "name": "ComfyUI",
-      "kind": "工作流",
-      "size": "Wan2.2 · LTX 2.3 · Hunyuan 1.5",
-      "spec": "网页操作",
+      "name": "图片与视频（ComfyUI）",
+      "kind": "图片与视频",
+      "size": "按所选模型下载",
+      "spec": "画布 · 官方模板",
       "ready": true,
+      "packs": [
+        { "id": "h3", "title": "MiniMax-H3", "kind": "视频", "size": "约 45–57 GB", "default": true },
+        { "id": "z_image", "title": "Z-Image-Turbo", "kind": "图片", "size": "约 21 GB", "default": true },
+        { "id": "qwen_image", "title": "Qwen-Image 2.1", "kind": "图片", "size": "约 27 GB", "default": false },
+        { "id": "wan22", "title": "Wan 2.2 14B", "kind": "视频", "size": "约 69 GB（估算）", "default": false },
+        { "id": "ltx25", "title": "LTX 2.5", "kind": "视频", "size": "约 53–57 GB", "default": false },
+        { "id": "hunyuan15", "title": "HunyuanVideo 1.5", "kind": "视频", "size": "约 45–60 GB（估算）", "default": false }
+      ],
       "fit": {
         "L4": {
           "tps": "—",
