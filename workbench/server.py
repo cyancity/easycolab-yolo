@@ -191,6 +191,10 @@ def deploy(req: DeployReq):
     eligible = [str(g).upper() for g in ((monitor.ACCOUNT_CACHE.get(req.email) or {}).get("ccu") or {}).get("eligibleGpus") or []]
     if eligible and gpu not in eligible:
         raise HTTPException(400, f"该账号当前不能使用 {gpu}，可用：{'、'.join(eligible)}")
+    if m.get("packs") is not None:
+        packs = req.params.get("comfy_packs")
+        if not isinstance(packs, list) or not packs or any(p not in catalog.COMFY_PACK_BY_ID for p in packs):
+            raise HTTPException(400, "至少选一个模型包")
     try:
         d = deployments.start(req.email, req.model, gpu, req.params)
     except ValueError as e:

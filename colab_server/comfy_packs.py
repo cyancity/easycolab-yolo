@@ -33,6 +33,7 @@ def install_comfyui_preset_pack_core(
     touch_activity()
     if COMFYUI_STATE["is_downloading_weight"] or COMFYUI_STATE.get("installing_pack_id"):
         return False, "当前已有模型或工作流包正在高速下载配齐中，请稍候..."
+    COMFYUI_STATE.pop("last_pack_result", None)  # 同一实例再装同一组时，不让工作台读到上一次的结果
     if pack_id.startswith("tpl:"):
         # 官方模板：pack_id 形如 tpl:<模板id>,<模板id>，只下载模板声明的模型，不写我们自己的工作流
         ids = [x.strip() for x in pack_id[4:].split(",") if x.strip()]
