@@ -27,12 +27,12 @@ const stat = (k, v, sub = "", cls = "") =>
 function stats(d) {
   const run = d.instances.filter((i) => i.status === "running");
   const boot = d.instances.filter((i) => i.status === "starting").length;
-  const met = run.filter((i) => sloChecks(i).every((c) => c.ok === true)).length;
+  const llm = run.filter(isLLM), met = llm.filter((i) => sloChecks(i).every((c) => c.ok === true)).length;
   const burn = sum(d.accounts, (a) => a.burn), cu = sum(d.accounts, (a) => a.cu);
   const left = hoursLeft(cu, burn);
   return `<section class="panel stats" data-key="sec-stats">
     ${stat("运行", `${numTag(run.length)}<small>台</small>`, boot ? `部署中 ${numTag(boot)}` : "")}
-    ${stat("达标", run.length ? `${numTag(met)} / ${numTag(run.length)}<small>台</small>` : "—", "", run.length ? (met === run.length ? "ov-ok" : "ov-low") : "")}
+    ${stat("达标", llm.length ? `${numTag(met)} / ${numTag(llm.length)}<small>台</small>` : "—", "", llm.length ? (met === llm.length ? "ov-ok" : "ov-low") : "")}
     ${stat("消耗", `${numTag(burn, 1)}<small>CU/h</small>`)}
     ${stat("可撑", left == null ? "—" : `约 ${numTag(left, 0)}<small>小时</small>`, "", left != null && left < 24 ? "ov-low" : "")}</section>`;
 }

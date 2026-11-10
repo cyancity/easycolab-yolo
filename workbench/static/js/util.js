@@ -81,15 +81,14 @@ const hhmm = (ts) => new Date(ts * 1000).toTimeString().slice(0, 5);
 export const waitInfo = (w) => [w.tries ? `第 ${w.tries}/${w.max} 次` : "", `${hhmm(w.next_at)} 再试`].filter(Boolean).join(" · ");
 export const STEPS = ["分配实例", "部署服务", "下载权重", "载入显存", "自测"];
 
-// 语言模型三项，其他模型只有显存；数据缺失时 ok 为 null
+// 只有语言模型有达标线（单流、上下文、显存）；画布在没出图时显存本来就空，不判达标。数据缺失时 ok 为 null
 export function sloChecks(i) {
   const s = ui.data.slo, out = [];
+  if (!isLLM(i)) return out;
   const vp = pct(i.vram_used, i.vram_total);
-  if (isLLM(i)) {
-    const tps = i.bench?.tps;
-    out.push({ k: "tps", label: "单流速度", value: tps ? `${num(tps, 0)} tok/s` : "—", line: `${num(s.tpsMin, 0)} tok/s`, ok: tps ? tps >= s.tpsMin : null });
-    out.push({ k: "ctx", label: "上下文", value: i.ctx ? `${num(i.ctx, 0)}K` : "—", line: `${num(s.ctxMin, 0)}K`, ok: i.ctx ? i.ctx >= s.ctxMin : null });
-  }
+  const tps = i.bench?.tps;
+  out.push({ k: "tps", label: "单流速度", value: tps ? `${num(tps, 0)} tok/s` : "—", line: `${num(s.tpsMin, 0)} tok/s`, ok: tps ? tps >= s.tpsMin : null });
+  out.push({ k: "ctx", label: "上下文", value: i.ctx ? `${num(i.ctx, 0)}K` : "—", line: `${num(s.ctxMin, 0)}K`, ok: i.ctx ? i.ctx >= s.ctxMin : null });
   out.push({ k: "vram", label: "显存", value: vp == null ? "—" : `${vp}%`, line: `${num(s.fillGoal, 0)}%`, ok: vp == null ? null : vp >= s.fillGoal });
   return out;
 }

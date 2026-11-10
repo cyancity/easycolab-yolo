@@ -158,7 +158,7 @@ export function detail(i) {
   const id = esc(i.id), top = head(i);
   switch (i.status) {
     case "running":
-      return top + sloBar(i) + stats(i) + headroom(i) + genPanel(i) + (isLLM(i) ? `<div class="two" data-key="d-two">${apiPanel(i)}${events(i)}</div>` : events(i));
+      return top + (isLLM(i) ? sloBar(i) : "") + stats(i) + (isLLM(i) ? headroom(i) : "") + genPanel(i) + (isLLM(i) ? `<div class="two" data-key="d-two">${apiPanel(i)}${events(i)}</div>` : events(i));
     case "starting": return top + progress(i) + events(i);
     case "waiting": return top + banner("warn", "clock", `等卡中${i.wait ? " · " + esc(waitInfo(i.wait)) : ""}`) + events(i);
     case "failed":
