@@ -4,7 +4,7 @@ import sys
 import time
 import subprocess
 import threading
-from typing import List, Tuple
+from typing import Tuple
 import json
 import shutil
 import urllib.parse
@@ -14,7 +14,7 @@ from .config import _has_rclone_drive_remote, COMFYUI_STATE
 from .hf_download import fast_parallel_hf_download
 from .idle import touch_activity
 from .vram import unload_model_from_vram_core
-from . import comfy_guard
+from . import comfy_guard, comfy_tunnel
 from .comfy_presets import (
     COMFY_STANDARD_MODEL_SUBDIRS,
     _COMFY_PROTECTED_PIP_PKGS,
@@ -35,7 +35,6 @@ from .comfy_sync import (
     _comfyui_periodic_drive_sync_loop,
     _ensure_comfyui_manager_tunnel_config,
     _install_persisted_custom_node_requirements,
-    _ensure_cloudflared_binary,
     stop_comfyui_core,
 )
 
@@ -188,12 +187,12 @@ def start_comfyui_core(unload_existing: bool = False, force_restart: bool = Fals
         # 5. 启动 ComfyUI 服务进程 (127.0.0.1:8188) 并实时镜像输出至 EasyColab 日志面板
         COMFYUI_STATE["progress"] = 0.80
         COMFYUI_STATE["status_message"] = "正在拉起 ComfyUI 节点推理引擎 (端口 8188)..."
+        port = int(COMFYUI_STATE.get("local_port") or 8188)
         subprocess.run(["pkill", "-f", "ComfyUI/main.py"], check=False)
-        subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
+        comfy_tunnel.kill_tunnels(port + 1)
         subprocess.run(["pkill", "-f", "colab_server.comfy_guard"], check=False)
         time.sleep(0.6)
 
-        port = int(COMFYUI_STATE.get("local_port") or 8188)
         comfy_cmd = [
             sys.executable, "-u", "main.py",
             "--listen", "127.0.0.1",
@@ -241,56 +240,26 @@ def start_comfyui_core(unload_existing: bool = False, force_restart: bool = Fals
         if not ready:
             raise RuntimeError("等待 ComfyUI 本地端口 8188 就绪超时，请查看右侧运行日志。")
 
-        # 6. 启动 Cloudflare WebSocket 高速公网隧道
+        # 6. 公网隧道：优先 gradio.live，失败退回 Cloudflare（见 comfy_tunnel）
         COMFYUI_STATE["progress"] = 0.92
-        COMFYUI_STATE["status_message"] = "ComfyUI 内核已就绪，正在建立 Cloudflare 高速全屏画布隧道..."
-        cf_bin = _ensure_cloudflared_binary()
+        COMFYUI_STATE["status_message"] = "ComfyUI 内核已就绪，正在建立全屏画布公网隧道..."
         guard_port = comfy_guard.ensure_guard(port)  # 隧道指向访问保护，不直接暴露 ComfyUI
-        tunnel_proc = subprocess.Popen(
-            [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{guard_port}", "--no-autoupdate"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+        public_url, tunnel_proc = comfy_tunnel.open_tunnel(guard_port)
         COMFYUI_STATE["tunnel_proc"] = tunnel_proc
 
-        cf_url_box: List[str] = [""]
-        cf_re = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-
-        def _watch_cf_logs(proc: subprocess.Popen):
-            try:
-                if proc.stdout is None:
-                    return
-                for raw_ln in proc.stdout:
-                    m = cf_re.search(raw_ln)
-                    if m and not cf_url_box[0]:
-                        cf_url_box[0] = m.group(0)
-            except Exception:
-                pass
-
-        threading.Thread(target=_watch_cf_logs, args=(tunnel_proc,), daemon=True).start()
-        for _ in range(45):
-            if cf_url_box[0]:
-                break
-            time.sleep(0.5)
-
-        if not cf_url_box[0]:
-            raise RuntimeError("未能获取 Cloudflare 公网隧道地址，请重试。")
-
-        COMFYUI_STATE["public_url"] = cf_url_box[0]
+        COMFYUI_STATE["public_url"] = public_url
         COMFYUI_STATE["is_running"] = True
         COMFYUI_STATE["progress"] = 1.0
         try:
             with open(_COMFY_STATE_FILE, "w", encoding="utf-8") as sf:
-                json.dump({"public_url": cf_url_box[0], "port": port, "guard_port": guard_port}, sf)
+                json.dump({"public_url": public_url, "port": port, "guard_port": guard_port}, sf)
         except Exception:
             pass
         _COMFY_STATUS_CACHE["ts"] = 0.0
         (cn_count, m_count, _), _ = _scan_comfyui_counts_and_outputs()
         ok_msg = f"ComfyUI 已就绪（{label} · 节点 {cn_count} 个 · 权重 {m_count} 个）"
         COMFYUI_STATE["status_message"] = ok_msg
-        print(f"[ComfyUI] 画布公网隧道已开通: {cf_url_box[0]}")
+        print("[ComfyUI] 画布公网隧道已开通")
 
         if not state._COMFY_BG_SYNC_STARTED:
             state._COMFY_BG_SYNC_STARTED = True

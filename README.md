@@ -34,7 +34,7 @@ G4 实测（2026-11-10，默认两个模型包）：
 - 从提交部署到就绪 7 分钟，其中下载 8 个模型文件约 3 分钟。
 - Z-Image-Turbo 1024×1024、8 步：1.6 s；首张含模型加载 9.7 s。
 - MiniMax-H3 文生视频官方模板，默认参数：50 s，采样到的显存峰值 37 GB。
-- 画布经 Cloudflare 快速隧道打开，第一次要下载约 10 MB 前端。本机直连时隧道约 30–70 KB/s，前端加载用了约 5 分钟。
+- 画布经 gradio.live 隧道打开，建不起来时退回 Cloudflare 快速隧道。2026-11-11 同一台 G4、本机直连、Chrome 计时（到画布可用）：gradio.live 第一次 25–26 s、第二次 17 s；Cloudflare 第一次 300 s、第二次 91 s。
 
 申请实例默认不带 `shape=hm`（与官方 colab-cli 一致；2026-11-10 实测带 hm 的 T4 在免费档和 Ultra 账号上都返回 503）。`POST /api/deploy` 的 `params` 可以加两个开关：`high_mem: true` 给 T4/A100 申请大内存规格，`probe: true` 只发一次分配请求、503 不重试。llama.cpp 模型还可以传 `load.options`，例如 `{"load": {"options": {"quant": "UD-Q2_0", "draft_n": 2}}}`；可选量化见 `runtime/llama_specs.py`。
 

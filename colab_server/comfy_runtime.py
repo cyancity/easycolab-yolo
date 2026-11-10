@@ -1,5 +1,4 @@
 import os
-import re
 import time
 import subprocess
 import threading
@@ -12,7 +11,7 @@ from . import state
 from .config import _has_rclone_drive_remote, COMFYUI_STATE
 from .idle import touch_activity
 from .pipeline_opt import _reclaim_transient_gpu_memory
-from . import comfy_guard
+from . import comfy_guard, comfy_tunnel
 from .comfy_presets import _COMFY_STATE_FILE, _COMFY_STATUS_CACHE, _ensure_comfyui_beginner_assets
 from .comfy_workflows import _get_comfy_preset_packs_status
 
@@ -139,7 +138,7 @@ def _scan_comfyui_counts_and_outputs() -> Tuple[Tuple[int, int, int], List[Dict[
 
 
 def _try_adopt_running_comfyui():
-    """若 app.py 热更新重启前实例上已有在线 ComfyUI 与 cloudflared 隧道，自动无缝接管，不断开用户已打开的画布"""
+    """若 app.py 热更新重启前实例上已有在线 ComfyUI 与画布隧道，自动无缝接管，不断开用户已打开的画布"""
     if state._COMFY_ADOPT_CHECKED or COMFYUI_STATE.get("is_running") or COMFYUI_STATE.get("is_starting"):
         return
     state._COMFY_ADOPT_CHECKED = True
@@ -158,11 +157,11 @@ def _try_adopt_running_comfyui():
     except Exception as e:  # noqa: BLE001
         print(f"[ComfyUI] 访问保护启动失败，不接管：{e}")
         # 旧版隧道直连 ComfyUI，没有保护就不能留着
-        subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
+        comfy_tunnel.kill_tunnels(port + 1)
         return
 
     pub_url = ""
-    if os.path.isfile(_COMFY_STATE_FILE):
+    if os.path.isfile(_COMFY_STATE_FILE) and comfy_tunnel.tunnel_alive(guard_port):
         try:
             st_obj = json.load(open(_COMFY_STATE_FILE, "r", encoding="utf-8"))
             if int(st_obj.get("guard_port") or 0) == guard_port:  # 旧版隧道直连 ComfyUI，不能沿用
@@ -172,29 +171,10 @@ def _try_adopt_running_comfyui():
 
     if not pub_url:
         try:
-            subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
-            cf_bin = _ensure_cloudflared_binary()
-            tunnel_proc = subprocess.Popen(
-                [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{guard_port}", "--no-autoupdate"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
-            COMFYUI_STATE["tunnel_proc"] = tunnel_proc
-            cf_re = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-            if tunnel_proc.stdout is not None:
-                t_end = time.time() + 12.0
-                while time.time() < t_end:
-                    ln = tunnel_proc.stdout.readline()
-                    if not ln:
-                        break
-                    m = cf_re.search(ln)
-                    if m:
-                        pub_url = m.group(0)
-                        break
-        except Exception:
-            pass
+            pub_url, COMFYUI_STATE["tunnel_proc"] = comfy_tunnel.open_tunnel(guard_port)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ComfyUI] 画布隧道没建起来：{e}")
+            pub_url = ""
 
     comfy_root, persist_root, _, label, _ = _resolve_comfyui_persistence_paths()
     _ensure_comfyui_beginner_assets(comfy_root, persist_root)
@@ -211,7 +191,7 @@ def _try_adopt_running_comfyui():
     if not state._COMFY_BG_SYNC_STARTED:
         state._COMFY_BG_SYNC_STARTED = True
         threading.Thread(target=_comfyui_periodic_drive_sync_loop, daemon=True).start()
-    print(f"[ComfyUI] 已自动接管实例上正在运行的 ComfyUI 服务: {pub_url or f'127.0.0.1:{port}'}")
+    print(f"[ComfyUI] 已自动接管实例上正在运行的 ComfyUI 服务（{'画布隧道在线' if pub_url else '画布隧道没建起来'}）")
 
 
 def _poll_local_comfyui_runtime_quiet():
@@ -320,5 +300,5 @@ def free_comfyui_vram_core() -> Tuple[bool, str]:
 
 def _link_forward():
     # 前向引用：定义在后面的模块，函数体运行时才用；入口在全部模块加载完后统一回填，保证严格按切片顺序加载
-    global _comfyui_periodic_drive_sync_loop, _ensure_cloudflared_binary
-    from .comfy_sync import _comfyui_periodic_drive_sync_loop, _ensure_cloudflared_binary
+    global _comfyui_periodic_drive_sync_loop
+    from .comfy_sync import _comfyui_periodic_drive_sync_loop

@@ -1,4 +1,4 @@
-"""ComfyUI 前面的访问保护。Cloudflare 隧道指向这里（ComfyUI 端口 + 1），不直接指向 ComfyUI。
+"""ComfyUI 前面的访问保护。画布公网隧道（comfy_tunnel）指向这里（ComfyUI 端口 + 1），不直接指向 ComfyUI。
 
 ComfyUI 自己没有登录，隧道地址谁拿到谁就能用这张显卡。这里要求一个随机令牌：
   GET /__colab_fleet_auth?token=<令牌>   令牌对就写 HttpOnly Cookie 并跳回 /

@@ -7,9 +7,9 @@ from typing import List, Tuple, Dict, Any
 import json
 import shutil
 import urllib.parse
-import urllib.request
 from .config import _has_rclone_drive_remote, COMFYUI_LOCK, COMFYUI_STATE
 from .pipeline_opt import _reclaim_transient_gpu_memory
+from . import comfy_tunnel
 from .comfy_presets import _COMFY_PROTECTED_PIP_PKGS, _COMFY_STATE_FILE, _COMFY_STATUS_CACHE
 from .comfy_runtime import (
     _resolve_comfyui_persistence_paths,
@@ -202,17 +202,6 @@ def _install_persisted_custom_node_requirements(comfy_root: str):
             sf.write(digest)
 
 
-def _ensure_cloudflared_binary() -> str:
-    cf_bin = shutil.which("cloudflared") or "/usr/local/bin/cloudflared"
-    if os.path.isfile(cf_bin) and os.access(cf_bin, os.X_OK):
-        return cf_bin
-    dl_url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-    os.makedirs(os.path.dirname(cf_bin), exist_ok=True)
-    urllib.request.urlretrieve(dl_url, cf_bin)
-    os.chmod(cf_bin, 0o755)
-    return cf_bin
-
-
 def stop_comfyui_core(sync_before_stop: bool = True) -> Tuple[bool, str]:
     with COMFYUI_LOCK:
         if sync_before_stop and (COMFYUI_STATE.get("is_running") or os.path.isdir("/content/ComfyUI")):
@@ -230,7 +219,7 @@ def stop_comfyui_core(sync_before_stop: bool = True) -> Tuple[bool, str]:
                         pass
                 COMFYUI_STATE[key] = None
         subprocess.run(["pkill", "-f", "ComfyUI/main.py"], check=False)
-        subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
+        comfy_tunnel.kill_tunnels(int(COMFYUI_STATE.get("local_port") or 8188) + 1)
         subprocess.run(["pkill", "-f", "colab_server.comfy_guard"], check=False)
         if os.path.exists(_COMFY_STATE_FILE):
             try:
