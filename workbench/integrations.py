@@ -55,13 +55,13 @@ def magpie_link(key: str, models: list) -> str:
 
 
 def open_link(link: str) -> None:
-    """让系统用默认程序打开链接"""
+    """让系统用默认程序打开链接。链接里带完整密钥：不要记录异常对象或链接本身，报错只给固定文案"""
     try:
         if sys.platform == "win32":
             os.startfile(link)  # noqa: S606
         elif sys.platform == "darwin":
-            subprocess.run(["open", link], check=True)
+            subprocess.run(["open", link], check=True, timeout=10)
         else:
-            subprocess.run(["xdg-open", link], check=True)
+            subprocess.run(["xdg-open", link], check=True, timeout=10)
     except (OSError, subprocess.SubprocessError) as e:
         raise RuntimeError("打开 Magpie 失败，请确认它已安装") from e

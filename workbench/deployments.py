@@ -404,6 +404,16 @@ def bench(d: dict):
 
 # ---------- 停止与释放 ----------
 
+def kill_starting() -> int:
+    """桌面客户端退出前调用：掐掉还在申请 GPU 的唤醒子进程，返回掐掉的个数。
+    这些部署保持 starting，下次启动 load() 会标成失败并释放可能已分到的实例"""
+    with _lock:
+        procs = [d.get("_proc") for d in _deps.values() if d["status"] == "starting" and d.get("_proc")]
+    for p in procs:
+        _kill_proc(p)
+    return len(procs)
+
+
 def stop(dep_id: str):
     d = _deps.get(dep_id)
     if d and d["status"] == "waiting":  # 排队中没有实例，只取消排队

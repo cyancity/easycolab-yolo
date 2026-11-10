@@ -53,17 +53,23 @@ def _port_busy() -> bool:
         return s.connect_ex(("127.0.0.1", PORT)) == 0
 
 
+# 探测本机后台不走系统代理：代理的例外列表里不一定有 127.0.0.1
+_LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def _page() -> bytes:
     try:
-        with urllib.request.urlopen(URL, timeout=2) as r:
+        with _LOCAL.open(URL, timeout=2) as r:
             return r.read() if r.status == 200 else b""
     except OSError:
         return b""
 
 
-def _wait_ready(seconds: float) -> bool:
+def _wait_ready(seconds: float, thread=None) -> bool:
     end = time.time() + seconds
     while time.time() < end:
+        if thread is not None and not thread.is_alive():  # 端口被抢占等原因，后台线程已经退出
+            return False
         if _page():
             return True
         time.sleep(0.5)
@@ -80,9 +86,14 @@ def _start_server():
     return server, thread
 
 
-def _active_count() -> int:
-    from workbench import deployments
-    return sum(1 for d in deployments.all_deps() if d.get("status") in deployments.ACTIVE)
+def _active() -> tuple:
+    """(在运行或处理中的实例数, 其中还在申请或部署的数)；读不到时当作没有，不挡退出"""
+    try:
+        from workbench import deployments
+        deps = [d for d in deployments.all_deps() if d.get("status") in deployments.ACTIVE]
+        return len(deps), sum(1 for d in deps if d.get("status") == "starting")
+    except Exception:  # noqa: BLE001
+        return 0, 0
 
 
 def _run_tray(server):
@@ -92,11 +103,18 @@ def _run_tray(server):
     from workbench.paths import STATIC_DIR
 
     def quit_app(icon, _item):
-        n = _active_count()
-        if n and not winsys.confirm(
-                f"还有 {n} 台实例在运行。\n\n退出后本机网关停止，agent 调不到模型。"
-                "实例仍在 Colab 上消耗计算单元，直到闲置自动释放或你在工作台停止它。\n\n确定退出？"):
+        n, starting = _active()
+        text = (f"还有 {n} 台实例在运行。\n\n退出后本机网关停止，agent 调不到模型。"
+                "实例仍在 Colab 上消耗计算单元，直到闲置自动释放或你在工作台停止它。")
+        if starting:
+            text += f"\n\n其中 {starting} 台还在部署，会被中断；下次打开时自动释放。"
+        if n and not winsys.confirm(text + "\n\n确定退出？"):
             return
+        try:
+            from workbench import deployments
+            deployments.kill_starting()
+        except Exception:  # noqa: BLE001
+            pass
         server.should_exit = True
         icon.stop()
 
@@ -132,7 +150,7 @@ def main():
         return
 
     server, thread = _start_server()
-    if not _wait_ready(60):
+    if not _wait_ready(60, thread):
         winsys.alert("工作台后台没有启动成功。" + (f"\n日志：{log}" if log else ""))
         os._exit(1)
     if not tray_only:

@@ -26,11 +26,12 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=yes
+CloseApplications=no
 RestartApplications=no
 
 [Languages]
-Name: "chs"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 简体中文语言文件取自 jrsoftware/issrc 标签 is-6_7_1（Unofficial），Inno 6.7 安装包不自带
+Name: "chs"; MessagesFile: "ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "在桌面创建快捷方式"
@@ -46,9 +47,21 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 [Registry]
 ; 与托盘菜单「开机自启」写的是同一个值
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ColabFleet"; ValueData: """{app}\{#AppExe}"" --tray"; Flags: uninsdeletevalue; Tasks: autostart
+; 安装时没勾、之后在托盘里打开了自启：卸载时也删掉
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "ColabFleet"; Flags: uninsdeletevalue dontcreatekey
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "启动 Colab Fleet"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM {#AppExe} /F"; Flags: runhidden; RunOnceId: "StopApp"
+
+[Code]
+// 托盘进程没有普通窗口，Restart Manager 关不掉它；覆盖安装前先结束，否则 exe 被占用
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#AppExe} /F', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Result := '';
+end;
