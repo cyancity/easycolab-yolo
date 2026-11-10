@@ -287,6 +287,7 @@ export const CATALOG = {
       "ready": true,
       "packs": [
         { "id": "h3", "title": "MiniMax-H3", "kind": "视频", "size": "约 45–57 GB", "default": true },
+        { "id": "h3_ref", "title": "MiniMax-H3 参考生视频", "kind": "视频", "size": "约 44 GB" },
         { "id": "z_image", "title": "Z-Image-Turbo", "kind": "图片", "size": "约 21 GB", "default": true },
         { "id": "qwen_image", "title": "Qwen-Image 2.1", "kind": "图片", "size": "约 27 GB", "default": false },
         { "id": "wan22", "title": "Wan 2.2 14B", "kind": "视频", "size": "约 69 GB（估算）", "default": false },

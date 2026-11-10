@@ -26,6 +26,8 @@ def _f(tps, fill, cls, **kw):
 COMFY_PACKS = [
     {"id": "h3", "title": "MiniMax-H3", "kind": "视频", "size": "约 45–57 GB", "default": True,
      "templates": ["video_minimax_h3_t2v", "video_minimax_h3_i2v"]},
+    {"id": "h3_ref", "title": "MiniMax-H3 参考生视频", "kind": "视频", "size": "约 44 GB",
+     "templates": ["video_minimax_h3_r2v", "video_minimax_h3_multiframe_reference"]},
     {"id": "z_image", "title": "Z-Image-Turbo", "kind": "图片", "size": "约 21 GB", "default": True,
      "templates": ["image_z_image_turbo"]},
     {"id": "qwen_image", "title": "Qwen-Image 2.1", "kind": "图片", "size": "约 27 GB",
