@@ -1,4 +1,4 @@
-; Inno Setup 6 安装脚本，由 packaging/windows/build.py 调用，版本号经 /DAppVersion= 传入
+﻿; Inno Setup 6 安装脚本，由 packaging/windows/build.py 调用，版本号经 /DAppVersion= 传入
 ; 装到当前用户目录，不需要管理员权限；账号数据在 %LOCALAPPDATA%\EasyColab，卸载时保留
 
 #ifndef AppVersion
