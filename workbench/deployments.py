@@ -15,7 +15,7 @@ import requests
 from . import accounts, catalog, failures, selftest, waitlist
 from .cloud import endpoint_of, gone as _gone, kill_proc as _kill_proc, log as _log  # noqa: F401 endpoint_of 对外保留
 from .keys import gateway_key, redact, write_private
-from .paths import APP_PY, BRIDGE, DEPLOYMENTS_FILE
+from .paths import APP_PY, DEPLOYMENTS_FILE, NO_WINDOW, bridge_cmd
 
 STEPS = ["分配实例", "部署服务", "下载权重", "载入显存", "自测"]
 # release_failed：实例可能还活着，监控线程会按 RELEASE_EVERY 间隔重试释放，所以也算活动状态
@@ -288,8 +288,8 @@ def _wake(d: dict):
     for k, extra in PARAM_ENV.items():
         if d["params"].get(k) is True:
             env.update(extra)
-    cmd = [sys.executable, str(BRIDGE), "wake", "--gpu", d["gpu"], "--session", d["session"], "--app-py", str(APP_PY)]
-    extra = {} if sys.platform == "win32" else {"start_new_session": True}
+    cmd = bridge_cmd("wake", "--gpu", d["gpu"], "--session", d["session"], "--app-py", str(APP_PY))
+    extra = {"creationflags": NO_WINDOW} if sys.platform == "win32" else {"start_new_session": True}
     p = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True, encoding="utf-8", errors="replace", **extra)
     with _lock:  # 与 stop() 互相可见：要么 stop 看到句柄，要么这里看到已取消

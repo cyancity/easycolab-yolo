@@ -6,6 +6,7 @@ import sys
 import traceback
 
 from . import accounts
+from .paths import NO_WINDOW
 
 
 def log(msg: str):
@@ -18,7 +19,8 @@ def kill_proc(p):
         return
     try:
         if sys.platform == "win32":
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, timeout=15)
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, timeout=15,
+                           creationflags=NO_WINDOW)
         else:
             os.killpg(p.pid, signal.SIGKILL)
     except Exception:  # noqa: BLE001

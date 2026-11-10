@@ -11,7 +11,7 @@ import requests
 
 from . import accounts, deployments, waitlist
 from .keys import redact
-from .paths import BRIDGE
+from .paths import NO_WINDOW, bridge_cmd
 
 ACCOUNT_CACHE: Dict[str, dict] = {}
 _pool = ThreadPoolExecutor(max_workers=6)
@@ -115,8 +115,8 @@ def _reclaimed(d: dict) -> bool:
 def _keepalive(email: str):
     home = accounts.home_of(email)
     try:
-        subprocess.run([sys.executable, str(BRIDGE), "keepalive"], env=accounts.bridge_env(home),
-                       capture_output=True, timeout=120)
+        subprocess.run(bridge_cmd("keepalive"), env=accounts.bridge_env(home),
+                       capture_output=True, timeout=120, creationflags=NO_WINDOW)
     except Exception:  # noqa: BLE001
         pass
 

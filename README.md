@@ -14,13 +14,19 @@
 
 ## 快速开始
 
+Windows 直接装桌面客户端：在 [Releases](https://github.com/cyancity/easycolab-yolo/releases) 下载 `ColabFleet-Setup-<版本>.exe`，双击安装，不需要 Python。装好后桌面和开始菜单有「Colab Fleet」。双击打开窗口；关窗口不停后台，托盘图标常驻，本机网关一直可用，托盘菜单「退出」才停。安装时默认勾选开机自启，托盘菜单里可以关。
+
+自己打包：`pip install -r requirements.txt -r requirements-desktop.txt` 后运行 `python packaging/windows/build.py 0.1.0`，装有 Inno Setup 6 时同时生成安装包。推 `v*` 标签时 GitHub Actions 会打包并建一个草稿 Release。
+
+从源码运行（任何系统）：
+
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # macOS / Linux 用 .venv/bin/python
 .venv/Scripts/python -m workbench
 ```
 
-浏览器打开 `http://127.0.0.1:8790/`，在 Chrome 地址栏点「安装」即成桌面应用。在账号页添加 Google 账号，新建部署时按「账号 × 显卡」矩阵选机器。外部 agent 统一调用 `http://127.0.0.1:8790/v1`，密钥在界面里复制。
+浏览器打开 `http://127.0.0.1:8790/`，在 Chrome 地址栏点「安装」即成桌面应用。在账号页添加 Google 账号，新建部署时按「账号 × 显卡」矩阵选机器。外部 agent 统一调用 `http://127.0.0.1:8790/v1`，密钥在界面里复制。装了 [Magpie](https://github.com/yetone/magpie) 时，实例详情的「接入」栏有「导入 Magpie」，在 Magpie 弹窗里确认后，它管理的 agent 都能选到这些模型。
 
 申请实例默认不带 `shape=hm`（与官方 colab-cli 一致；2026-11-10 实测带 hm 的 T4 在免费档和 Ultra 账号上都返回 503）。`POST /api/deploy` 的 `params` 可以加两个开关：`high_mem: true` 给 T4/A100 申请大内存规格，`probe: true` 只发一次分配请求、503 不重试。llama.cpp 模型还可以传 `load.options`，例如 `{"load": {"options": {"quant": "UD-Q2_0", "draft_n": 2}}}`；可选量化见 `runtime/llama_specs.py`。
 

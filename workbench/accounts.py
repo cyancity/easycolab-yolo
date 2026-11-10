@@ -9,7 +9,6 @@ import re
 import secrets
 import shutil
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
@@ -23,7 +22,7 @@ from colab_cli.client import Client, Prod
 from colab_cli.state import StateStore
 
 from .keys import write_private
-from .paths import ACCOUNTS_DIR, BRIDGE, LEGACY_ACCOUNTS
+from .paths import ACCOUNTS_DIR, LEGACY_ACCOUNTS, NO_WINDOW, bridge_cmd
 
 COLAB = "https://colab.research.google.com"
 XSSI = ")]}'\n"
@@ -86,8 +85,8 @@ def bridge_env(home: Path) -> dict:
 def run_bridge(home: Path, args: List[str], timeout: int = 90) -> dict:
     """跑一次桥接命令，取最后一行 JSON"""
     p = subprocess.run(
-        [sys.executable, str(BRIDGE), *args], env=bridge_env(home), capture_output=True,
-        text=True, encoding="utf-8", errors="replace", timeout=timeout,
+        bridge_cmd(*args), env=bridge_env(home), capture_output=True,
+        text=True, encoding="utf-8", errors="replace", timeout=timeout, creationflags=NO_WINDOW,
     )
     for line in reversed(p.stdout.splitlines()):
         line = line.strip()

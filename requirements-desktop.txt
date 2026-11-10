@@ -1,0 +1,4 @@
+# 桌面客户端（托盘、打包）额外依赖；只跑 python -m workbench 不需要
+pystray>=0.19
+pillow>=10
+pyinstaller>=6.16

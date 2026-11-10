@@ -8,6 +8,17 @@ REPO_ROOT = PKG_DIR.parent
 BRIDGE = REPO_ROOT / "colab_bridge.py"
 APP_PY = REPO_ROOT / "app.py"
 STATIC_DIR = PKG_DIR / "static"
+# 打包成桌面程序（PyInstaller）后没有独立的 python，桥接改由同一个 exe 的 --bridge 入口执行
+FROZEN = bool(getattr(sys, "frozen", False))
+# 桌面程序没有控制台窗口，子进程（桥接、taskkill）不加这个标志会每次闪一个黑窗
+NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
+
+
+def bridge_cmd(*args: str) -> list:
+    """调用 colab_bridge.py 的命令行"""
+    if FROZEN:
+        return [sys.executable, "--bridge", *args]
+    return [sys.executable, str(BRIDGE), *args]
 MODEL_DOCS_DIR = PKG_DIR / "model_docs"
 
 # 旧版桌面客户端的多账号库，首次启动时导入
