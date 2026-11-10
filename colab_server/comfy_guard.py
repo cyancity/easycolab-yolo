@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import hmac
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -26,6 +27,10 @@ TOKEN_FILE = "/tmp/.easycolab_comfy_token"
 _HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers",
         "transfer-encoding", "upgrade", "host", "content-length"}
 _PAGE_401 = "需要从 Colab Fleet 打开画布。".encode("utf-8")
+# 前端打包产物文件名带内容哈希，内容不会变。ComfyUI 一律回 no-store，经隧道每次打开都要重下约 10 MB，
+# 这里改成浏览器可长期缓存（private：只存在用户自己的浏览器里）
+_HASHED = re.compile(r"^/assets/[^/]+-[A-Za-z0-9_-]{8}\.(?:js|css)$")
+_IMMUTABLE = "private, max-age=31536000, immutable"
 
 
 # ---------- 在 app.py 进程里调用：令牌和保护进程 ----------
@@ -167,6 +172,8 @@ def make_app(upstream: str, secret: str):
                 for k, v in up.headers.items():
                     if k.lower() not in _HOP:
                         resp.headers.add(k, v)
+                if up.status == 200 and req.method == "GET" and _HASHED.match(req.path):
+                    resp.headers["Cache-Control"] = _IMMUTABLE
                 await resp.prepare(req)
                 async for chunk in up.content.iter_chunked(64 * 1024):
                     await resp.write(chunk)
