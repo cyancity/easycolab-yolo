@@ -230,7 +230,8 @@ def stop_comfyui_core(sync_before_stop: bool = True) -> Tuple[bool, str]:
                         pass
                 COMFYUI_STATE[key] = None
         subprocess.run(["pkill", "-f", "ComfyUI/main.py"], check=False)
-        subprocess.run(["pkill", "-f", "cloudflared.*8188"], check=False)
+        subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
+        subprocess.run(["pkill", "-f", "colab_server.comfy_guard"], check=False)
         if os.path.exists(_COMFY_STATE_FILE):
             try:
                 os.remove(_COMFY_STATE_FILE)

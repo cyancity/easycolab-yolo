@@ -14,6 +14,7 @@ from .config import _has_rclone_drive_remote, COMFYUI_STATE
 from .hf_download import fast_parallel_hf_download
 from .idle import touch_activity
 from .vram import unload_model_from_vram_core
+from . import comfy_guard
 from .comfy_presets import (
     COMFY_STANDARD_MODEL_SUBDIRS,
     _COMFY_PROTECTED_PIP_PKGS,
@@ -188,7 +189,8 @@ def start_comfyui_core(unload_existing: bool = False, force_restart: bool = Fals
         COMFYUI_STATE["progress"] = 0.80
         COMFYUI_STATE["status_message"] = "正在拉起 ComfyUI 节点推理引擎 (端口 8188)..."
         subprocess.run(["pkill", "-f", "ComfyUI/main.py"], check=False)
-        subprocess.run(["pkill", "-f", "cloudflared.*8188"], check=False)
+        subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
+        subprocess.run(["pkill", "-f", "colab_server.comfy_guard"], check=False)
         time.sleep(0.6)
 
         port = int(COMFYUI_STATE.get("local_port") or 8188)
@@ -243,8 +245,9 @@ def start_comfyui_core(unload_existing: bool = False, force_restart: bool = Fals
         COMFYUI_STATE["progress"] = 0.92
         COMFYUI_STATE["status_message"] = "ComfyUI 内核已就绪，正在建立 Cloudflare 高速全屏画布隧道..."
         cf_bin = _ensure_cloudflared_binary()
+        guard_port = comfy_guard.ensure_guard(port)  # 隧道指向访问保护，不直接暴露 ComfyUI
         tunnel_proc = subprocess.Popen(
-            [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{port}", "--no-autoupdate"],
+            [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{guard_port}", "--no-autoupdate"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -280,7 +283,7 @@ def start_comfyui_core(unload_existing: bool = False, force_restart: bool = Fals
         COMFYUI_STATE["progress"] = 1.0
         try:
             with open(_COMFY_STATE_FILE, "w", encoding="utf-8") as sf:
-                json.dump({"public_url": cf_url_box[0], "port": port}, sf)
+                json.dump({"public_url": cf_url_box[0], "port": port, "guard_port": guard_port}, sf)
         except Exception:
             pass
         _COMFY_STATUS_CACHE["ts"] = 0.0

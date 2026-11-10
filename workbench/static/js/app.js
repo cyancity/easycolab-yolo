@@ -212,6 +212,17 @@ const handlers = {
   copySnippet: async (t) => {
     try { await copy(snippet(inst(t.dataset.copySnippet), await api.gatewayKey(), ui.apiTab)); } catch (e) { toast(e.message, "err"); }
   },
+  openCanvas: (t) => {
+    // 先同步开窗口，避免被当成弹窗拦截；地址带访问令牌，不写进页面
+    const w = window.open("about:blank", "_blank");
+    act(async () => {
+      try {
+        const url = safeUrl(await api.canvasUrl(t.dataset.openCanvas));
+        if (!url) throw new Error("画布地址无效");
+        if (w) w.location = url;
+      } catch (e) { w?.close(); throw e; }
+    });
+  },
   importMagpie: () => act(() => api.importMagpie(), "已打开 Magpie，在它的窗口里确认"),
   retry: () => { poll(); },
   login: () => { ui.login = { step: 1 }; },

@@ -37,7 +37,7 @@ PARAM_ENV = {"probe": {"COLAB_CLI_ASSIGN_RETRIES": "0"}, "high_mem": {"COLAB_FLE
 _global = {"until": 0.0, "why": ""}
 # 不落盘的运行时字段；以下划线开头的键（子进程句柄、重试计数等）同样不落盘
 _TRANSIENT = {"pid", "fails"}
-_KEEP_RAW = {"url", "comfy_url"}  # 服务地址本身含访问密钥，落盘必须保持可用
+_KEEP_RAW = {"url", "comfy_url", "comfy_token"}  # 服务地址和画布令牌落盘必须保持可用
 
 
 def _now() -> str:
@@ -381,6 +381,7 @@ def _comfy(d: dict):
         d["step_text"] = redact(_EMOJI.sub("", str(c.get("status_message") or "启动 ComfyUI")))[:120]
         if c.get("is_running") and c.get("public_url"):
             d["comfy_url"] = c["public_url"]
+            d["comfy_token"] = str(c.get("token") or "")  # 画布访问保护的令牌，旧版 Colab 端没有
             return
         time.sleep(5)
     raise TimeoutError("ComfyUI 启动超时")

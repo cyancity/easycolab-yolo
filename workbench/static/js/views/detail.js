@@ -12,7 +12,7 @@ function actions(i) {
   const id = esc(i.id), out = [];
   if (i.status === "running") {
     if (!isLLM(i) && ui.docs?.[i.model]?.templates?.length) out.push(`<button class="btn" data-key="a-tpl" data-open-model="${esc(i.model)}">${icon("sparkles")}模板</button>`);
-    if (hasComfy(i)) out.push(`<a class="btn" data-key="a-comfy" href="${esc(i.comfy_url)}" target="_blank" rel="noopener">${icon("workflow")}打开 ComfyUI</a>`);
+    if (hasComfy(i)) out.push(`<button class="btn primary" data-key="a-comfy" data-open-canvas="${id}">${icon("workflow")}打开画布</button>`);
     if (isLLM(i)) out.push(`<button class="btn" data-key="a-bench" data-bench="${id}">${icon("timer")}重新自测</button>`);
     const arm = ui.confirm === i.id;
     out.push(`<button class="btn danger ${arm ? "armed" : ""}" data-key="a-stop" data-stop="${id}">${icon("square")}${arm ? "确认停止" : "停止"}</button>`);

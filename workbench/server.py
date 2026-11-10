@@ -1,5 +1,6 @@
 """工作台 HTTP 服务：/ 网页（PWA）、/api 管理接口、/v1 模型网关。只监听 127.0.0.1。"""
 import time
+import urllib.parse
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -225,6 +226,17 @@ def rebench(dep_id: str):
         raise HTTPException(400, "实例未运行")
     deployments.bench(d)
     return d.get("bench") or {}
+
+
+@app.post("/api/instances/{dep_id}/canvas")
+def canvas(dep_id: str):
+    """打开 ComfyUI 画布的地址。带访问令牌，只经这个接口给本页面（中间件挡住跨站请求），不放进 /api/state"""
+    d = deployments.get(dep_id)
+    url = (d or {}).get("comfy_url") or ""
+    if not d or d["status"] != "running" or not url.startswith("https://"):
+        raise HTTPException(400, "画布还没就绪")
+    token = d.get("comfy_token") or ""
+    return {"url": f"{url}/__colab_fleet_auth?token={urllib.parse.quote(token)}" if token else url}
 
 
 class OrphanReq(BaseModel):

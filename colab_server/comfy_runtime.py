@@ -12,6 +12,7 @@ from . import state
 from .config import _has_rclone_drive_remote, COMFYUI_STATE
 from .idle import touch_activity
 from .pipeline_opt import _reclaim_transient_gpu_memory
+from . import comfy_guard
 from .comfy_presets import _COMFY_STATE_FILE, _COMFY_STATUS_CACHE, _ensure_comfyui_beginner_assets
 from .comfy_workflows import _get_comfy_preset_packs_status
 
@@ -152,39 +153,27 @@ def _try_adopt_running_comfyui():
     except Exception:
         return
 
+    try:
+        guard_port = comfy_guard.ensure_guard(port)
+    except Exception as e:  # noqa: BLE001
+        print(f"[ComfyUI] 访问保护启动失败，不接管：{e}")
+        return
+
     pub_url = ""
     if os.path.isfile(_COMFY_STATE_FILE):
         try:
             st_obj = json.load(open(_COMFY_STATE_FILE, "r", encoding="utf-8"))
-            pub_url = str(st_obj.get("public_url") or "").strip()
+            if int(st_obj.get("guard_port") or 0) == guard_port:  # 旧版隧道直连 ComfyUI，不能沿用
+                pub_url = str(st_obj.get("public_url") or "").strip()
         except Exception:
             pub_url = ""
 
     if not pub_url:
-        cf_re = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-        for m_port in range(20241, 20247):
-            for ep in ("/quicktunnel", "/metrics"):
-                try:
-                    with opener.open(f"http://127.0.0.1:{m_port}{ep}", timeout=0.6) as mr:
-                        body = mr.read().decode("utf-8", errors="ignore")
-                    m = cf_re.search(body)
-                    if m:
-                        pub_url = m.group(0)
-                        break
-                    m_host = re.search(r'"hostname"\s*:\s*"([a-zA-Z0-9-]+\.trycloudflare\.com)"', body)
-                    if m_host:
-                        pub_url = "https://" + m_host.group(1)
-                        break
-                except Exception:
-                    pass
-            if pub_url:
-                break
-
-    if not pub_url:
         try:
+            subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
             cf_bin = _ensure_cloudflared_binary()
             tunnel_proc = subprocess.Popen(
-                [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{port}", "--no-autoupdate"],
+                [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{guard_port}", "--no-autoupdate"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -214,7 +203,7 @@ def _try_adopt_running_comfyui():
     if pub_url:
         try:
             with open(_COMFY_STATE_FILE, "w", encoding="utf-8") as sf:
-                json.dump({"public_url": pub_url, "port": port}, sf)
+                json.dump({"public_url": pub_url, "port": port, "guard_port": guard_port}, sf)
         except Exception:
             pass
     if not state._COMFY_BG_SYNC_STARTED:
@@ -285,6 +274,8 @@ def get_comfyui_status_dict() -> Dict[str, Any]:
         "progress": float(COMFYUI_STATE["progress"]),
         "status_message": str(COMFYUI_STATE["status_message"]),
         "public_url": str(COMFYUI_STATE["public_url"] or ""),
+        # 访问保护的令牌：这个接口在实例密钥路径下，只有本机工作台读得到
+        "token": comfy_guard.token() if COMFYUI_STATE["public_url"] else "",
         "local_port": int(COMFYUI_STATE["local_port"]),
         "queue_running": int(COMFYUI_STATE["queue_running"]),
         "queue_pending": int(COMFYUI_STATE["queue_pending"]),

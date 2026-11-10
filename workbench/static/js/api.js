@@ -31,6 +31,7 @@ export const stopOrphan = (email, endpoint) => call("POST", "/api/orphans/stop",
 // email 只在重新登录时传。后端目前不读请求体，按新增账号处理，同邮箱会覆盖旧凭据
 export const loginStart = (email) => call("POST", "/api/accounts/login/start", email ? { email } : undefined);
 export const loginFinish = (pending_id, code) => call("POST", "/api/accounts/login/finish", { pending_id, code });
+export const canvasUrl = (id) => call("POST", `/api/instances/${id}/canvas`).then((r) => r.url);
 export const importMagpie = () => call("POST", "/api/integrations/magpie");
 export const gatewayKey = () => call("GET", "/api/gateway/key").then((r) => r.key);
 
