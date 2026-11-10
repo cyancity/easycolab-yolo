@@ -212,6 +212,7 @@ const handlers = {
   copySnippet: async (t) => {
     try { await copy(snippet(inst(t.dataset.copySnippet), await api.gatewayKey(), ui.apiTab)); } catch (e) { toast(e.message, "err"); }
   },
+  importMagpie: () => act(() => api.importMagpie(), "已打开 Magpie，在它的窗口里确认"),
   retry: () => { poll(); },
   login: () => { ui.login = { step: 1 }; },
   relogin: (t) => { ui.login = { step: 1, email: t.dataset.relogin }; },

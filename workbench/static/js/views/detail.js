@@ -97,6 +97,7 @@ function apiPanel(i) {
       <button class="btn sm ghost icon-btn" ${attr} aria-label="${label}" ${attr.includes('=""') ? "disabled" : ""}>${icon("copy")}</button>`;
   return `<section class="panel dt-api" data-key="d-api"><div class="panel-h">${icon("plug")}接入
       <span class="right dt-tools"><span class="tabs" role="tablist">${tab("openai", "OpenAI")}${tab("anthropic", "Anthropic")}</span>
+        ${ui.data.integrations?.magpie ? `<button class="btn sm" data-import-magpie>${icon("external-link")}导入 Magpie</button>` : ""}
         <button class="btn sm" data-copy-snippet="${esc(i.id)}">${icon("copy")}复制调用</button></span></div>
     <div class="panel-b dt-api-b"><div class="kv">
       ${row("地址", esc(g.base), `data-copy="${esc(g.base)}"`, "复制地址")}

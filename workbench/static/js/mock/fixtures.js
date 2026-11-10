@@ -160,5 +160,5 @@ function fresh() {
 
 export function buildScenario(name) {
   const s = { daily, trouble, fresh, offline: fresh }[name]?.() || daily();
-  return { ...s, gateway: { ...GATEWAY }, name };
+  return { ...s, gateway: { ...GATEWAY }, integrations: { magpie: true }, name };
 }

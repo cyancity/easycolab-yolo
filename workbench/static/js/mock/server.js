@@ -114,7 +114,7 @@ function stateBody() {
     };
   });
   return {
-    accounts, instances, gateway: S.gateway, cooldown: S.cooldown, slo: CATALOG.slo, gpus: CATALOG.gpus, prefs: { ...prefs }, models: CATALOG.models,
+    accounts, instances, gateway: S.gateway, integrations: S.integrations, cooldown: S.cooldown, slo: CATALOG.slo, gpus: CATALOG.gpus, prefs: { ...prefs }, models: CATALOG.models,
   };
 }
 
@@ -220,6 +220,7 @@ const ROUTES = [
     return { pending_id: id, auth_url: "https://example.com/oauth-demo?id=" + id };
   }],
   ["POST", /^\/api\/accounts\/login\/finish$/, (m, b) => loginFinish(b)],
+  ["POST", /^\/api\/integrations\/magpie$/, () => ({ ok: true })],
   ["GET", /^\/api\/gateway\/key$/, () => ({ key: "sk-ec-demo-local-0000" })],
   ["POST", /^\/v1\/h3\/generate$/, (m, b) => {
     const id = `job-${++jobN}`;

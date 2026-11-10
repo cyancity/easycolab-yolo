@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import accounts, catalog, deployments, failures, gateway, model_docs, monitor, prefs, waitlist
+from . import accounts, catalog, deployments, failures, gateway, integrations, model_docs, monitor, prefs, waitlist
 from .keys import gateway_key, mask_key, redact
 from .paths import STATIC_DIR
 
@@ -145,6 +145,7 @@ def state():
         "instances": [_instance_view(d, by_email) for d in recent] + orphans,
         "gateway": {"base": f"http://127.0.0.1:{PORT}/v1", "key_masked": mask_key(gateway_key())},
         "cooldown": deployments.global_cooldown(),
+        "integrations": {"magpie": integrations.magpie_installed()},
     }
 
 
@@ -266,6 +267,17 @@ def login_finish(req: CodeReq):
 @app.get("/api/gateway/key")
 def full_key():
     return {"key": gateway_key()}
+
+
+@app.post("/api/integrations/magpie")
+def import_magpie():
+    if not integrations.magpie_installed():
+        raise HTTPException(400, "没有检测到 Magpie")
+    try:
+        integrations.open_link(integrations.magpie_link(gateway_key(), integrations.language_models()))
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
 
 
 @app.get("/")
