@@ -16,6 +16,12 @@ from .comfy_workflows import _build_and_install_comfy_preset_workflows
 from .comfy_runtime import _resolve_comfyui_persistence_paths, _safe_symlink_dir
 from .comfy_sync import sync_comfyui_to_drive_core
 from .comfy_start import start_comfyui_core
+from .comfy_templates import template_models
+
+
+def _pack_result(pack_id: str, ok: bool, message: str):
+    """给本机工作台看的结果：它按 id 等这一条出现，再决定继续还是告警"""
+    COMFYUI_STATE["last_pack_result"] = {"id": pack_id, "ok": ok, "message": message}
 
 
 def install_comfyui_preset_pack_core(
@@ -25,11 +31,24 @@ def install_comfyui_preset_pack_core(
 ) -> Tuple[bool, str]:
     """一键配齐预置中文工作流包：8 线程下载缺失模型权重 + 写入中文傻瓜注释工作流 + 生成默认参考图 + 自动拉起/刷新画布"""
     touch_activity()
-    target_pack = next((p for p in COMFY_PRESET_WORKFLOW_PACKS if p["id"] == pack_id), None)
-    if not target_pack:
-        return False, f"未找到预置工作流包: {pack_id}"
     if COMFYUI_STATE["is_downloading_weight"] or COMFYUI_STATE.get("installing_pack_id"):
         return False, "当前已有模型或工作流包正在高速下载配齐中，请稍候..."
+    if pack_id.startswith("tpl:"):
+        # 官方模板：pack_id 形如 tpl:<模板id>,<模板id>，只下载模板声明的模型，不写我们自己的工作流
+        ids = [x.strip() for x in pack_id[4:].split(",") if x.strip()]
+        try:
+            files = template_models(ids)
+        except Exception as e:  # noqa: BLE001
+            msg = f"读取官方模板失败: {e}"
+            _pack_result(pack_id, False, msg)
+            return False, msg
+        target_pack = {"title": "官方模板模型", "official": True, "workflows": [],
+                       "models": [(sub, name, repo, path, 0.0) for sub, name, repo, path in files]}
+    else:
+        target_pack = next((p for p in COMFY_PRESET_WORKFLOW_PACKS if p["id"] == pack_id), None)
+    if not target_pack:
+        _pack_result(pack_id, False, f"未找到预置工作流包: {pack_id}")
+        return False, f"未找到预置工作流包: {pack_id}"
 
     comfy_root, persist_root, mode, label, _ = _resolve_comfyui_persistence_paths()
     models_list = target_pack["models"]
@@ -78,9 +97,8 @@ def install_comfyui_preset_pack_core(
                 print(f"[ComfyUI 预置包] ({idx}/{total_m}) 已存在跳过: models/{sub}/{fname}")
                 continue
 
-            COMFYUI_STATE["status_message"] = (
-                f"[{idx}/{total_m}] 正在 8 线程极速下载 {fname} (约 {approx_gb:.1f} GB)..."
-            )
+            size_txt = f" (约 {approx_gb:.1f} GB)" if approx_gb else ""
+            COMFYUI_STATE["status_message"] = f"[{idx}/{total_m}] 正在 8 线程极速下载 {fname}{size_txt}..."
             print(f"[ComfyUI 预置包] ({idx}/{total_m}) 开始 8 线程下载 {repo_id}/{repo_rel_path} -> models/{sub}/{fname}")
             dl_path = fast_parallel_hf_download(
                 repo_id=repo_id,
@@ -101,8 +119,12 @@ def install_comfyui_preset_pack_core(
                         pass
 
         COMFYUI_STATE["progress"] = 0.88
-        COMFYUI_STATE["status_message"] = f"正在生成「{target_pack['title']}」全中文三步傻瓜注释工作流..."
-        installed_wfs = _build_and_install_comfy_preset_workflows(persist_root, [pack_id])
+        if target_pack.get("official"):
+            installed_wfs = []
+            _pack_result(pack_id, True, f"已下载 {total_m} 个模型文件")  # 云盘同步在后面慢慢做，不挡就绪
+        else:
+            COMFYUI_STATE["status_message"] = f"正在生成「{target_pack['title']}」全中文三步傻瓜注释工作流..."
+            installed_wfs = _build_and_install_comfy_preset_workflows(persist_root, [pack_id])
         if os.path.isdir(comfy_root):
             _safe_symlink_dir(os.path.join(persist_root, "user"), os.path.join(comfy_root, "user"))
             _safe_symlink_dir(os.path.join(persist_root, "output"), os.path.join(comfy_root, "output"))
@@ -129,9 +151,11 @@ def install_comfyui_preset_pack_core(
             ok_msg = f"「{target_pack['title']}」已全部配齐！打开画布左侧「工作流」点击 {wf_names_str} 即可直接传图运行"
             COMFYUI_STATE["status_message"] = ok_msg
             print(f"[ComfyUI 预置包] {ok_msg}")
+            _pack_result(pack_id, True, ok_msg)
             return True, ok_msg
     except Exception as e:
         err = f"配齐预置工作流包失败: {e}"
+        _pack_result(pack_id, False, err)
         COMFYUI_STATE["progress"] = 0.0
         COMFYUI_STATE["status_message"] = err
         print(f"[ComfyUI 预置包] {err}")

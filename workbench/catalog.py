@@ -20,6 +20,25 @@ def _f(tps, fill, cls, **kw):
     return {"tps": tps, "fill": fill, "cls": cls, **kw}
 
 
+# 图片与视频交给 ComfyUI 的官方模板，这里只登记模板 id。部署时 Colab 端读模板声明的模型并下载
+# （colab_server/comfy_templates.py），我们不维护工作流。size 取自官方 templates/index.json，同包模板共用
+# 大部分文件，标「估算」的是按共用文件推的，只用于界面提示
+COMFY_PACKS = [
+    {"id": "h3", "title": "MiniMax-H3", "kind": "视频", "size": "约 45–57 GB", "default": True,
+     "templates": ["video_minimax_h3_t2v", "video_minimax_h3_i2v"]},
+    {"id": "z_image", "title": "Z-Image-Turbo", "kind": "图片", "size": "约 21 GB", "default": True,
+     "templates": ["image_z_image_turbo"]},
+    {"id": "qwen_image", "title": "Qwen-Image 2.1", "kind": "图片", "size": "约 27 GB",
+     "templates": ["image_qwen_image_2_1_t2i", "image_qwen_image_2_1_image_edit"]},
+    {"id": "wan22", "title": "Wan 2.2 14B", "kind": "视频", "size": "约 69 GB（估算）",
+     "templates": ["video_wan2_2_14B_t2v", "video_wan2_2_14B_i2v"]},
+    {"id": "ltx25", "title": "LTX 2.5", "kind": "视频", "size": "约 53–57 GB",
+     "templates": ["video_ltx2_5_t2v", "video_ltx2_5_i2v"]},
+    {"id": "hunyuan15", "title": "HunyuanVideo 1.5", "kind": "视频", "size": "约 45–60 GB（估算）",
+     "templates": ["video_hunyuan_video_1.5_720p_t2v", "video_hunyuan_video_1.5_720p_i2v"]},
+]
+COMFY_PACK_BY_ID = {p["id"]: p for p in COMFY_PACKS}
+
 MODELS = [
     {
         "id": "flash-next", "app_id": "qwen38_flash_next", "name": "Qwen3.8-Flash-Next", "kind": "语言",
@@ -56,24 +75,25 @@ MODELS = [
         "fit": {"H100": _f("≈45", 80, "low", rec=True), "G4": _f("≈32", 70, "low")},
     },
     {
-        "id": "qimg", "app_id": "qwen_image_21", "name": "Qwen-Image-2.1", "kind": "图像",
+        # 图片和视频改走 ComfyUI 官方模板（见 COMFY_PACKS）；这三个自写管线的部署项先隐藏，验证后删除
+        "id": "qimg", "app_id": "qwen_image_21", "name": "Qwen-Image-2.1", "kind": "图像", "hidden": True,
         "size": "BF16 · 30.9 GB", "spec": "≈4 s / 张", "ready": True, "load": {"precision_mode": "bf16"},
         "fit": {"A100": _f("4 s/张", 96, "low", note="40GB 偏紧，未实测"), "H100": _f("2.5 s/张", 48, "low"), "G4": _f("3 s/张", 40, "low", rec=True)},
     },
     {
-        "id": "zimg", "app_id": "z_image_turbo", "name": "Z-Image-Turbo", "kind": "图像",
+        "id": "zimg", "app_id": "z_image_turbo", "name": "Z-Image-Turbo", "kind": "图像", "hidden": True,
         "size": "BF16 · 30.6 GB", "spec": "8 步出图", "ready": True, "load": {"precision_mode": "bf16"},
         "fit": {"L4": _f("3 s/张", 90, "good", rec=True), "A100": _f("1.2 s/张", 90, "low", note="40GB 偏紧，未实测"),
                 "H100": _f("0.8 s/张", 45, "low"), "G4": _f("1 s/张", 38, "low")},
     },
     {
-        "id": "h3", "app_id": "minimax_h3", "name": "MiniMax-H3", "kind": "视频",
+        "id": "h3", "app_id": "minimax_h3", "name": "MiniMax-H3", "kind": "视频", "hidden": True,
         "size": "134 GB", "spec": "文生视频", "ready": True, "load": {"precision_mode": "bf16"},
         "fit": {"G4": _f("≈6 min / 5 s", 94, "good", note="需内存卸载", rec=True)},
     },
     {
-        "id": "comfy", "app_id": None, "name": "ComfyUI", "kind": "工作流",
-        "size": "Wan2.2 · LTX 2.3 · Hunyuan 1.5", "spec": "网页操作", "ready": True,
+        "id": "comfy", "app_id": None, "name": "图片与视频（ComfyUI）", "kind": "图片与视频",
+        "size": "按所选模型下载", "spec": "画布 · 官方模板", "ready": True, "packs": COMFY_PACKS,
         "fit": {"L4": _f("—", 70, "low"), "A100": _f("—", 80, "good"), "H100": _f("—", 80, "good"),
                 "G4": _f("—", 85, "good", rec=True)},
     },

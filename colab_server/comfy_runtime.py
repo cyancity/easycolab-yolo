@@ -271,6 +271,7 @@ def get_comfyui_status_dict() -> Dict[str, Any]:
         "is_syncing_drive": bool(COMFYUI_STATE["is_syncing_drive"]),
         "is_downloading_weight": bool(COMFYUI_STATE["is_downloading_weight"]),
         "installing_pack_id": str(COMFYUI_STATE.get("installing_pack_id") or ""),
+        "last_pack_result": dict(COMFYUI_STATE.get("last_pack_result") or {}),
         "progress": float(COMFYUI_STATE["progress"]),
         "status_message": str(COMFYUI_STATE["status_message"]),
         "public_url": str(COMFYUI_STATE["public_url"] or ""),

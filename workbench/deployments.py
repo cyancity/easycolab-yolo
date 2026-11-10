@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 
 import requests
 
-from . import accounts, catalog, failures, selftest, waitlist
+from . import accounts, catalog, comfy_deploy, failures, selftest, waitlist
 from .cloud import endpoint_of, gone as _gone, kill_proc as _kill_proc, log as _log  # noqa: F401 endpoint_of 对外保留
 from .keys import gateway_key, redact, write_private
 from .paths import APP_PY, DEPLOYMENTS_FILE, NO_WINDOW, bridge_cmd
@@ -240,7 +240,8 @@ def _run(d: dict):
             _download(d, m)
             _load(d, m)
         elif d["model"] == "comfy":
-            _comfy(d)
+            comfy_deploy.start(d)
+            comfy_deploy.models(d)
         if m["kind"] == "语言":
             _step(d, 5)
             bench(d)  # 自测失败只记警告，不影响就绪
@@ -361,30 +362,6 @@ def _load(d: dict, m: dict):
     if m["app_id"] not in (st.get("loaded_model_ids") or []):
         raise RuntimeError("载入失败：" + str(st.get("task_message") or ""))
     event(d, "ok", f"已载入显存 {st.get('vram_used_gb', 0)} / {st.get('vram_total_gb', 0)} GB")
-
-
-def _comfy(d: dict):
-    _step(d, 4, "启动 ComfyUI")
-    _api(d, "/minimax_api/comfyui/start", {}, timeout=60)
-    end, fails = time.time() + 1800, 0
-    while time.time() < end:
-        _check_alive(d)
-        try:
-            c = _api(d, "/minimax_api/comfyui/status").get("comfyui", {})
-            fails = 0
-        except (requests.RequestException, ValueError):
-            fails += 1
-            if fails >= 10:
-                raise RuntimeError("实例连续 10 次无响应，可能已被 Colab 回收")
-            time.sleep(5)
-            continue
-        d["step_text"] = redact(_EMOJI.sub("", str(c.get("status_message") or "启动 ComfyUI")))[:120]
-        if c.get("is_running") and c.get("public_url"):
-            d["comfy_url"] = c["public_url"]
-            d["comfy_token"] = str(c.get("token") or "")  # 画布访问保护的令牌，旧版 Colab 端没有
-            return
-        time.sleep(5)
-    raise TimeoutError("ComfyUI 启动超时")
 
 
 def bench(d: dict):
