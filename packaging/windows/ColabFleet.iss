@@ -37,6 +37,10 @@ Name: "chs"; MessagesFile: "ChineseSimplified.isl"
 Name: "desktopicon"; Description: "在桌面创建快捷方式"
 Name: "autostart"; Description: "开机自动启动（在托盘运行，本机网关一直可用）"
 
+[InstallDelete]
+; 覆盖安装前清掉旧版的运行时文件，上一版删掉的模块和网页文件不会残留
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "..\..\dist\ColabFleet\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
