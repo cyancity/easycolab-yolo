@@ -145,7 +145,7 @@ const handlers = {
   quick: (t) => { newLaunch(t.dataset.quick); recommend(); direct(ui.launch.gpu ? 3 : 2); },
   modelDeploy: (t) => { newLaunch(t.dataset.modelDeploy); recommend(); direct(2); },
   model: (t) => { ui.msel = t.dataset.model; ui.resetScroll = true; },
-  pick: (t) => { ui.launch.model = t.dataset.pick; ui.launch.packs = undefined; ui.launch.email = ui.launch.gpu = ui.launch.rec = ui.launch.avoid = null; },
+  pick: (t) => { if (ui.launch.model !== t.dataset.pick) ui.launch.packs = undefined; ui.launch.model = t.dataset.pick; ui.launch.email = ui.launch.gpu = ui.launch.rec = ui.launch.avoid = null; },
   cell: (t) => { [ui.launch.email, ui.launch.gpu] = t.dataset.cell.split("|"); },
   ctx: (t) => { ui.launch.ctx = Number(t.dataset.ctx); },
   packToggle: (t) => {
@@ -211,6 +211,7 @@ const handlers = {
   openCanvas: (t) => {
     // 先同步开窗口，避免被当成弹窗拦截；地址带访问令牌，不写进页面
     const w = window.open("about:blank", "_blank");
+    if (w) w.opener = null; // 画布里的第三方节点脚本不能反过来改写工作台
     act(async () => {
       try {
         const url = safeUrl(await api.canvasUrl(t.dataset.openCanvas));

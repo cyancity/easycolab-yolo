@@ -38,7 +38,7 @@ def fast_parallel_hf_download(
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     temp_path = dest_path + ".part"
 
-    url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+    url = f"https://huggingface.co/{repo_id}/resolve/main/{urllib.parse.quote(filename, safe='/')}"
     opener = urllib.request.build_opener(_StripAuthRedirectHandler())
     headers = {"User-Agent": "EasyColab/2.0"}
     token = (hf_token or os.environ.get("HF_TOKEN") or "").strip()

@@ -10,7 +10,7 @@ from .telemetry import get_gpu_status_dict
 from .comfy_runtime import _resolve_comfyui_persistence_paths, get_comfyui_status_dict, free_comfyui_vram_core
 from .comfy_sync import sync_comfyui_to_drive_core, stop_comfyui_core
 from .comfy_start import start_comfyui_core, download_comfyui_model_core
-from .comfy_packs import install_comfyui_preset_pack_core
+from .comfy_packs import claim_pack, install_comfyui_preset_pack_core
 from .schemas import ComfyStartRequest, ComfyWeightDownloadRequest, ComfyInstallPackRequest
 from .routes_common import api_base
 
@@ -74,10 +74,10 @@ def attach(app: FastAPI):
     @app.post(API_BASE + "/minimax_api/comfyui/install_pack")
     def api_comfyui_install_pack(req: ComfyInstallPackRequest):
         touch_activity()
-        if not COMFYUI_STATE["is_downloading_weight"] and not COMFYUI_STATE.get("installing_pack_id"):
+        if claim_pack(req.pack_id):
             threading.Thread(
                 target=install_comfyui_preset_pack_core,
-                args=(req.pack_id, req.auto_start, req.hf_token),
+                args=(req.pack_id, req.auto_start, req.hf_token, True),
                 daemon=True,
             ).start()
         return get_gpu_status_dict(model_id=state.SELECTED_MODEL_ID)

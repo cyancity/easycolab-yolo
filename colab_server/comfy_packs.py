@@ -1,5 +1,6 @@
 import os
 import subprocess
+import threading
 from typing import Tuple
 import shutil
 import urllib.parse
@@ -19,37 +20,54 @@ from .comfy_start import start_comfyui_core
 from .comfy_templates import template_models
 
 
+_PACK_LOCK = threading.Lock()
+
+
 def _pack_result(pack_id: str, ok: bool, message: str):
     """给本机工作台看的结果：它按 id 等这一条出现，再决定继续还是告警"""
     COMFYUI_STATE["last_pack_result"] = {"id": pack_id, "ok": ok, "message": message}
+
+
+def claim_pack(pack_id: str) -> bool:
+    """占住下载位并清掉上一次的结果。路由在起线程前调用，工作台轮询时立刻能看到 installing_pack_id"""
+    with _PACK_LOCK:
+        if COMFYUI_STATE["is_downloading_weight"] or COMFYUI_STATE.get("installing_pack_id"):
+            return False
+        COMFYUI_STATE["installing_pack_id"] = pack_id
+        COMFYUI_STATE.pop("last_pack_result", None)
+        return True
+
+
+def _fail_early(pack_id: str, msg: str) -> Tuple[bool, str]:
+    COMFYUI_STATE["installing_pack_id"] = ""
+    _pack_result(pack_id, False, msg)
+    return False, msg
 
 
 def install_comfyui_preset_pack_core(
     pack_id: str,
     auto_start: bool = True,
     hf_token: str = "",
+    claimed: bool = False,
 ) -> Tuple[bool, str]:
     """一键配齐预置中文工作流包：8 线程下载缺失模型权重 + 写入中文傻瓜注释工作流 + 生成默认参考图 + 自动拉起/刷新画布"""
     touch_activity()
-    if COMFYUI_STATE["is_downloading_weight"] or COMFYUI_STATE.get("installing_pack_id"):
+    if not claimed and not claim_pack(pack_id):
         return False, "当前已有模型或工作流包正在高速下载配齐中，请稍候..."
-    COMFYUI_STATE.pop("last_pack_result", None)  # 同一实例再装同一组时，不让工作台读到上一次的结果
     if pack_id.startswith("tpl:"):
         # 官方模板：pack_id 形如 tpl:<模板id>,<模板id>，只下载模板声明的模型，不写我们自己的工作流
         ids = [x.strip() for x in pack_id[4:].split(",") if x.strip()]
+        COMFYUI_STATE["status_message"] = "正在读取官方模板..."
         try:
             files = template_models(ids)
         except Exception as e:  # noqa: BLE001
-            msg = f"读取官方模板失败: {e}"
-            _pack_result(pack_id, False, msg)
-            return False, msg
+            return _fail_early(pack_id, f"读取官方模板失败: {e}")
         target_pack = {"title": "官方模板模型", "official": True, "workflows": [],
                        "models": [(sub, name, repo, path, 0.0) for sub, name, repo, path in files]}
     else:
         target_pack = next((p for p in COMFY_PRESET_WORKFLOW_PACKS if p["id"] == pack_id), None)
     if not target_pack:
-        _pack_result(pack_id, False, f"未找到预置工作流包: {pack_id}")
-        return False, f"未找到预置工作流包: {pack_id}"
+        return _fail_early(pack_id, f"未找到预置工作流包: {pack_id}")
 
     comfy_root, persist_root, mode, label, _ = _resolve_comfyui_persistence_paths()
     models_list = target_pack["models"]
@@ -113,7 +131,9 @@ def install_comfyui_preset_pack_core(
                 # 清理 fast_parallel_hf_download 因嵌套路径创建的空子目录 (如 split_files/*)
                 top_nested = repo_rel_path.split("/", 1)[0]
                 nested_dir = os.path.join(dest_dir, top_nested)
-                if top_nested and os.path.isdir(nested_dir):
+                real_dest, real_nested = os.path.realpath(dest_dir), os.path.realpath(nested_dir)
+                inside = real_nested.startswith(real_dest + os.sep) and real_nested != real_dest
+                if top_nested and inside and os.path.isdir(nested_dir):
                     try:
                         shutil.rmtree(nested_dir, ignore_errors=True)
                     except Exception:

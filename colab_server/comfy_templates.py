@@ -30,7 +30,9 @@ def _load(tid: str) -> dict:
 
 
 def _safe(part: str) -> bool:
-    return bool(part) and ".." not in part and not part.startswith(("/", "\\"))
+    """相对路径，逐段不能是空、. 或 ..，不能带反斜杠；先解码再查，%2E%2E 也拦得住"""
+    return bool(part) and "\\" not in part and not part.startswith("/") \
+        and all(seg not in ("", ".", "..") for seg in part.split("/"))
 
 
 def template_models(ids: List[str]) -> List[Tuple[str, str, str, str]]:
@@ -46,12 +48,13 @@ def template_models(ids: List[str]) -> List[Tuple[str, str, str, str]]:
                 sub, name, url = m.get("directory"), m.get("name"), m.get("url")
                 if not (sub and name and url):
                     continue
-                if not (_safe(sub) and _safe(name)):
-                    raise ValueError(f"{tid} 的模型路径不安全: {sub}/{name}")
                 hit = _HF.match(url.split("?", 1)[0])
                 if not hit:
                     raise ValueError(f"{tid} 的模型 {name} 不是 Hugging Face main 分支上的文件: {url}")
-                found[(sub, name)] = (hit.group(1), urllib.parse.unquote(hit.group(2)))
+                repo, path = urllib.parse.unquote(hit.group(1)), urllib.parse.unquote(hit.group(2))
+                if not all(_safe(x) for x in (sub, name, repo, path)):
+                    raise ValueError(f"{tid} 的模型路径不安全: {sub}/{name} <- {repo}/{path}")
+                found[(sub, name)] = (repo, path)
     if not found:
         raise ValueError("这些模板没有声明任何模型: " + ", ".join(ids))
     return [(sub, name, repo, path) for (sub, name), (repo, path) in found.items()]

@@ -55,12 +55,12 @@ def mask_key(k: str) -> str:
 
 
 # sk- 前面不能紧跟字母数字，避免误伤 task-xxxx 之类的普通词
-_SECRET = re.compile(r"/k/[A-Za-z0-9_-]+|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{6,}|(API Key:\s*)\S+")
+_SECRET = re.compile(r"/k/[A-Za-z0-9_-]+|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{6,}|(API Key:\s*)\S+|([?&]token=)[^\s&\"']+")
 
 
 def _mask_match(m) -> str:
-    if m.group(1):
-        return m.group(1) + "••••••"
+    if m.group(1) or m.group(2):
+        return (m.group(1) or m.group(2)) + "••••••"
     return "/k/••••••" if m.group(0).startswith("/k/") else "sk-••••••"
 
 

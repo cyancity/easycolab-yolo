@@ -157,6 +157,8 @@ def _try_adopt_running_comfyui():
         guard_port = comfy_guard.ensure_guard(port)
     except Exception as e:  # noqa: BLE001
         print(f"[ComfyUI] 访问保护启动失败，不接管：{e}")
+        # 旧版隧道直连 ComfyUI，没有保护就不能留着
+        subprocess.run(["pkill", "-f", "cloudflared tunnel --url http://127.0.0.1:"], check=False)
         return
 
     pub_url = ""

@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 COOKIE = "colab_fleet_comfy"
@@ -45,12 +46,18 @@ def token() -> str:
     return t
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
 def _guard_alive(port: int) -> bool:
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    """带当前令牌访问登录口，回 302 才算在跑且令牌一致；令牌文件重建过的旧进程会回 401"""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
     try:
-        opener.open(f"http://127.0.0.1:{port}{AUTH_PATH}", timeout=1.0)
+        opener.open(f"http://127.0.0.1:{port}{AUTH_PATH}?token={urllib.parse.quote(token())}", timeout=1.0)
     except urllib.error.HTTPError as e:
-        return e.code == 401  # 不带令牌访问登录口，保护进程会回 401
+        return e.code == 302
     except OSError:
         return False
     return False
@@ -78,9 +85,14 @@ def ensure_guard(upstream_port: int) -> int:
 # ---------- 保护进程本身 ----------
 
 def make_app(upstream: str, secret: str):
-    from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
+    from aiohttp import ClientError, ClientSession, ClientTimeout, WSMsgType, web
+    from multidict import CIMultiDict
 
     expected = secret.encode()
+
+    def bad_gateway():
+        return web.Response(status=502, body="ComfyUI 没有响应，可能还在启动。".encode("utf-8"),
+                            content_type="text/plain", charset="utf-8")
 
     def _ok(value: str) -> bool:
         return bool(value) and hmac.compare_digest(value.encode(), expected)
@@ -89,13 +101,18 @@ def make_app(upstream: str, secret: str):
         auth = req.headers.get("Authorization", "")
         return _ok(req.cookies.get(COOKIE, "")) or (auth.startswith("Bearer ") and _ok(auth[7:]))
 
-    def forward_headers(req) -> dict:
-        out = {k: v for k, v in req.headers.items() if k.lower() not in _HOP and not k.lower().startswith("sec-websocket")}
-        out.pop("Authorization", None)  # 我们的令牌不交给 ComfyUI 和它的插件
-        cookies = [c for c in req.headers.get("Cookie", "").split(";") if c.strip() and not c.strip().startswith(COOKIE + "=")]
-        out.pop("Cookie", None)
+    def forward_headers(req) -> CIMultiDict:
+        # 头名大小写不定，一律按小写比较；我们的令牌（Authorization 和自己的 Cookie）不交给 ComfyUI 和它的插件
+        out = CIMultiDict()
+        for k, v in req.headers.items():
+            lk = k.lower()
+            if lk in _HOP or lk.startswith("sec-websocket") or lk in ("authorization", "cookie"):
+                continue
+            out.add(k, v)
+        cookies = [c.strip() for h in req.headers.getall("Cookie", []) for c in h.split(";")]
+        cookies = [c for c in cookies if c and not c.startswith(COOKIE + "=")]
         if cookies:
-            out["Cookie"] = ";".join(cookies).strip()
+            out["Cookie"] = "; ".join(cookies)
         return out
 
     async def login(req):
@@ -107,10 +124,15 @@ def make_app(upstream: str, secret: str):
         return resp
 
     async def websocket(req, url: str):
+        # 先连上游：连不上就回 502，不先给浏览器 101 再断开
+        try:
+            up = await req.app["session"].ws_connect(url, headers=forward_headers(req), max_msg_size=0)
+        except (ClientError, OSError):
+            return bad_gateway()
         down = web.WebSocketResponse(max_msg_size=0)
-        await down.prepare(req)
-        session = req.app["session"]
-        async with session.ws_connect(url, headers=forward_headers(req), max_msg_size=0) as up:
+        try:
+            await down.prepare(req)
+
             async def pump(src, dst):
                 async for msg in src:
                     if msg.type == WSMsgType.TEXT:
@@ -123,6 +145,8 @@ def make_app(upstream: str, secret: str):
             await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for t in tasks:
                 t.cancel()
+        finally:
+            await up.close()
         await down.close()
         return down
 
@@ -135,18 +159,23 @@ def make_app(upstream: str, secret: str):
         if req.headers.get("Upgrade", "").lower() == "websocket":
             return await websocket(req, "ws" + url[4:])
         body = await req.read() if req.can_read_body else None
-        session = req.app["session"]
-        async with session.request(req.method, url, headers=forward_headers(req), data=body,
-                                   allow_redirects=False) as up:
-            resp = web.StreamResponse(status=up.status, reason=up.reason)
-            for k, v in up.headers.items():
-                if k.lower() not in _HOP:
-                    resp.headers.add(k, v)
-            await resp.prepare(req)
-            async for chunk in up.content.iter_chunked(64 * 1024):
-                await resp.write(chunk)
-            await resp.write_eof()
-            return resp
+        resp = None
+        try:
+            async with req.app["session"].request(req.method, url, headers=forward_headers(req), data=body,
+                                                  allow_redirects=False) as up:
+                resp = web.StreamResponse(status=up.status, reason=up.reason)
+                for k, v in up.headers.items():
+                    if k.lower() not in _HOP:
+                        resp.headers.add(k, v)
+                await resp.prepare(req)
+                async for chunk in up.content.iter_chunked(64 * 1024):
+                    await resp.write(chunk)
+                await resp.write_eof()
+                return resp
+        except (ClientError, OSError):
+            if resp is not None and resp.prepared:
+                raise  # 已经开始回传，只能断开
+            return bad_gateway()
 
     async def on_startup(app):
         # 不自动解压：原样转发 Content-Encoding 和字节

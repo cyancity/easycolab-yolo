@@ -34,14 +34,19 @@ def start(d: dict):
 
 
 def models(d: dict):
-    """按部署时勾选的模型包，让 Colab 端下载官方模板声明的模型文件。失败只告警：画布照样能用"""
+    """按部署时勾选的模型包，让 Colab 端下载官方模板声明的模型文件。
+    下载完才算部署完成（没有模型的画布用不了）；下载失败只告警，实例照常就绪，画布能打开"""
     packs = [catalog.COMFY_PACK_BY_ID[p] for p in d["params"].get("comfy_packs") or [] if p in catalog.COMFY_PACK_BY_ID]
     if not packs:
         return
     titles = "、".join(p["title"] for p in packs)
     pack_id = "tpl:" + ",".join(dict.fromkeys(t for p in packs for t in p["templates"]))
     d["step_text"] = f"下载模型：{titles}"
-    dep._api(d, "/minimax_api/comfyui/install_pack", {"pack_id": pack_id, "auto_start": False}, timeout=60)
+    try:
+        dep._api(d, "/minimax_api/comfyui/install_pack", {"pack_id": pack_id, "auto_start": False}, timeout=60)
+    except (requests.RequestException, ValueError) as e:
+        dep.event(d, "warn", "模型下载没能开始：" + redact(str(e))[:200])
+        return
     start, fails = time.time(), 0
     while time.time() - start < 3600:
         dep._check_alive(d)
