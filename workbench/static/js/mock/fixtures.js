@@ -60,7 +60,7 @@ function flashNext(ultra) {
   });
 }
 
-const GATEWAY = { base: "http://127.0.0.1:8790/v1", key_masked: "sk-ec-••••••93d6" };
+const GATEWAY = { base: "http://127.0.0.1:8790/v1", key_masked: "sk-ec-••••••0000" };
 
 function daily() {
   const ultra = mkAccount("ultra001@example.com", "Ultra", 2380.5, ALL);
