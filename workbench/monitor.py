@@ -112,6 +112,16 @@ def _reclaimed(d: dict) -> bool:
     return all(a.get("endpoint") != s.endpoint for a in cache["assignments"])
 
 
+def _idle_release(d: dict) -> str:
+    """Colab 端的闲置看门狗（colab_server/idle.py）到点会自己释放实例。最后一次遥测里闲置倒计时已到 0 附近时，
+    失联是它干的，不是 Colab 回收。2026-11-10 G4 dd6cab5 就是这样：idle_remaining_seconds 0，只收到 3 次请求"""
+    t = d.get("tele") or {}
+    mins, left = _num(t.get("idle_timeout_minutes")), _num(t.get("idle_remaining_seconds"))
+    if mins and mins > 0 and left is not None and left <= 90:
+        return f"闲置 {mins:g} 分钟没有请求，实例已自动释放"
+    return ""
+
+
 def _keepalive(email: str):
     home = accounts.home_of(email)
     try:
@@ -133,8 +143,9 @@ def _instances_loop():
             list(_pool.map(poll, live))
             for d in live:
                 if d["status"] == "running" and d.get("fails", 0) >= 12 and _reclaimed(d):
-                    d["status"], d["error"] = "stopped", "Colab 已回收该实例"
-                    deployments.event(d, "warn", d["error"])
+                    idle = _idle_release(d)
+                    d["status"], d["error"] = "stopped", idle or "Colab 已回收该实例"
+                    deployments.event(d, "info" if idle else "warn", d["error"])
             for d in deps:  # 释放失败的实例：到点就重试（间隔和次数由 deployments 控制）
                 if d["status"] == "release_failed" and time.time() >= d.get("_next", 0):
                     _pool.submit(retry, d)
