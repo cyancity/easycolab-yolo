@@ -38,6 +38,8 @@ def find_iscc():
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):  # CI 的控制台是 cp1252，中文提示会报 UnicodeEncodeError
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     version = (arg or os.environ.get("COLAB_FLEET_VERSION") or "0.1.0").lstrip("v")
     make_icon()
