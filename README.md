@@ -28,6 +28,14 @@ python -m venv .venv
 
 浏览器打开 `http://127.0.0.1:8790/`，在 Chrome 地址栏点「安装」即成桌面应用。在账号页添加 Google 账号，新建部署时按「账号 × 显卡」矩阵选机器。外部 agent 统一调用 `http://127.0.0.1:8790/v1`，密钥在界面里复制。装了 [Magpie](https://github.com/yetone/magpie) 时，实例详情的「接入」栏有「导入 Magpie」，在 Magpie 弹窗里确认后，它管理的 agent 都能选到这些模型。
 
+图片和视频交给 ComfyUI。新建部署选「图片与视频（ComfyUI）」，在确认页勾选模型包，默认是 MiniMax-H3 和 Z-Image-Turbo。部署时 Colab 端读取 ComfyUI 官方模板里声明的模型并下载，下完才算就绪。实例页点「打开画布」进入 ComfyUI，在模板库里打开对应模板就能运行。画布前面有访问令牌，只能从工作台打开。
+
+G4 实测（2026-11-10，默认两个模型包）：
+- 从提交部署到就绪 7 分钟，其中下载 8 个模型文件约 3 分钟。
+- Z-Image-Turbo 1024×1024、8 步：1.6 s；首张含模型加载 9.7 s。
+- MiniMax-H3 文生视频官方模板，默认参数：50 s，采样到的显存峰值 37 GB。
+- 画布经 Cloudflare 快速隧道打开，第一次要下载约 10 MB 前端。本机直连时隧道约 30–70 KB/s，前端加载用了约 5 分钟。
+
 申请实例默认不带 `shape=hm`（与官方 colab-cli 一致；2026-11-10 实测带 hm 的 T4 在免费档和 Ultra 账号上都返回 503）。`POST /api/deploy` 的 `params` 可以加两个开关：`high_mem: true` 给 T4/A100 申请大内存规格，`probe: true` 只发一次分配请求、503 不重试。llama.cpp 模型还可以传 `load.options`，例如 `{"load": {"options": {"quant": "UD-Q2_0", "draft_n": 2}}}`；可选量化见 `runtime/llama_specs.py`。
 
 Flash-Next 在 G4 上的实测（2026-11-10，IQ4_XS，MTP 草稿 2）：
